@@ -2,6 +2,7 @@
 #include <CanvasTriangle.h>
 #include <Colour.h>
 #include <DrawingWindow.h>
+#include <TextureMap.h>
 #include <Utils.h>
 #include <algorithm>
 #include <cstdlib>
@@ -64,7 +65,7 @@ void drawFilledTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour c
     std::vector<float> longSide =
         interpolateSingleFloats(topVertex.x, bottomVertex.x, bottomVertex.y - topVertex.y + 1);
 
-    for (int index = 0, y = topVertex.y; y <= middleVertex.y; index++, y++) {
+    for (int index = 0, y = topVertex.y; y < middleVertex.y; index++, y++) {
         drawLine(window, CanvasPoint(shortSide[index], y), CanvasPoint(longSide[index], y), colour);
     }
 
@@ -77,30 +78,72 @@ void drawFilledTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour c
     drawStrokedTriangle(window, triangle, Colour(255, 255, 255));
 }
 
+uint32_t getTexturePixelValue(DrawingWindow &window, glm::vec3 relativeCoordinates, CanvasTriangle textureTriangle,
+                              TextureMap &texture) {
+    CanvasPoint topVertex = textureTriangle.vertices[0];
+    CanvasPoint middleVertex = textureTriangle.vertices[1];
+    CanvasPoint bottomVertex = textureTriangle.vertices[2];
+    TexturePoint texturePixel =
+        TexturePoint(middleVertex.x * relativeCoordinates.x + bottomVertex.x * relativeCoordinates.y +
+                         topVertex.x * relativeCoordinates.z,
+                     middleVertex.y * relativeCoordinates.x + bottomVertex.y * relativeCoordinates.y +
+                         topVertex.y * relativeCoordinates.z);
+    return texture.pixels[round(texturePixel.y) * texture.width + round(texturePixel.x)];
+}
+
+void drawTexturedTriangle(DrawingWindow &window, CanvasTriangle triangle, CanvasTriangle textureTriangle, TextureMap &texture) {
+    std::sort(triangle.vertices.begin(), triangle.vertices.end(),
+              [](CanvasPoint a, CanvasPoint b) { return a.y < b.y; });
+    std::sort(textureTriangle.vertices.begin(), textureTriangle.vertices.end(),
+              [](CanvasPoint a, CanvasPoint b) { return a.y < b.y; });
+
+    CanvasPoint topVertex = triangle.vertices[0];
+    CanvasPoint middleVertex = triangle.vertices[1];
+    CanvasPoint bottomVertex = triangle.vertices[2];
+    std::vector<float> shortSide =
+        interpolateSingleFloats(topVertex.x, middleVertex.x, middleVertex.y - topVertex.y + 1);
+    std::vector<float> longSide =
+        interpolateSingleFloats(topVertex.x, bottomVertex.x, bottomVertex.y - topVertex.y + 1);
+
+    for (int index = 0, y = topVertex.y; y < middleVertex.y; index++, y++) {
+        int start = std::min(shortSide[index], longSide[index]);
+        int limit = std::max(shortSide[index], longSide[index]);
+        for (int x = start; x <= limit; x++) {
+            glm::vec3 relativeCoordinates = convertToBarycentricCoordinates(
+                glm::vec2(topVertex.x, topVertex.y), glm::vec2(middleVertex.x, middleVertex.y),
+                glm::vec2(bottomVertex.x, bottomVertex.y), glm::vec2(x, y));
+
+            uint32_t pixelValue = getTexturePixelValue(window, relativeCoordinates, textureTriangle, texture);
+            window.setPixelColour(x, y, pixelValue);
+        }
+    }
+
+    shortSide = interpolateSingleFloats(middleVertex.x, bottomVertex.x, bottomVertex.y - middleVertex.y + 1);
+    for (int index = 0, y = middleVertex.y; y < bottomVertex.y; index++, y++) {
+        int start = std::min(shortSide[index], longSide[index + middleVertex.y - topVertex.y]);
+        int limit = std::max(shortSide[index], longSide[index + middleVertex.y - topVertex.y]);
+        for (int x = start; x <= limit; x++) {
+            glm::vec3 relativeCoordinates = convertToBarycentricCoordinates(
+                glm::vec2(topVertex.x, topVertex.y), glm::vec2(middleVertex.x, middleVertex.y),
+                glm::vec2(bottomVertex.x, bottomVertex.y), glm::vec2(x, y));
+
+            uint32_t pixelValue = getTexturePixelValue(window, relativeCoordinates, textureTriangle, texture);
+            window.setPixelColour(x, y, pixelValue);
+        }
+    }
+
+    drawStrokedTriangle(window, triangle, Colour(255, 255, 255));
+}
+
 void draw(DrawingWindow &window) {
-    /*
     window.clearPixels();
-    CanvasTriangle triangle =
-        CanvasTriangle(CanvasPoint(window.width / 2, 0), CanvasPoint(window.width - 1, window.height / 2),
-                       CanvasPoint(0, window.height - 1));
-    drawFilledTriangle(window, triangle, Colour(255, 0, 0));
 
-    drawLine(window, CanvasPoint(0, 0), CanvasPoint(window.width / 2, window.height / 2), Colour(255, 255, 255));
-    drawLine(window, CanvasPoint(window.width - 1, 0), CanvasPoint(window.width / 2, window.height / 2),
-             Colour(255, 255, 255));
-    drawLine(window, CanvasPoint(window.width / 2, 0), CanvasPoint(window.width / 2, window.height),
-             Colour(255, 255, 255));
-    drawLine(window, CanvasPoint(window.width / 3, window.height / 2),
-             CanvasPoint(window.width * 2 / 3, window.height / 2), Colour(255, 255, 255));
+    CanvasTriangle triangle = CanvasTriangle(CanvasPoint(320, 20), CanvasPoint(600, 460), CanvasPoint(20, 300));
+    CanvasTriangle textureTriangle = CanvasTriangle(CanvasPoint(195, 5), CanvasPoint(395, 380), CanvasPoint(65, 330));
+    TextureMap texture = TextureMap("resources/texture.ppm");
+    drawTexturedTriangle(window, triangle, textureTriangle, texture);
 
-    glm::vec3 topLeft(255, 0, 0);
-    glm::vec3 topRight(0, 0, 255);
-    glm::vec3 bottomRight(0, 255, 0);
-    glm::vec3 bottomLeft(255, 255, 0);
-
-    std::vector<glm::vec3> leftEdge = interpolateThreeElementValues(topLeft, bottomLeft, window.height);
-    std::vector<glm::vec3> rightEdge = interpolateThreeElementValues(topRight, bottomRight, window.height);
-
+    /*
     for (size_t y = 0; y < window.height; y++) {
         for (size_t x = 0; x < window.width; x++) {
             glm::vec3 pixelValues =
