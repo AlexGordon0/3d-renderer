@@ -36,7 +36,9 @@ add_executable(3dRenderer
         libs/sdw/TextureMap.cpp
         libs/sdw/TexturePoint.cpp
         libs/sdw/Utils.cpp
-        src/3dRenderer.cpp)
+        libs/sdw/ModelReader.cpp
+        src/3dRenderer.cpp
+    )
 
 if (MSVC)
     target_compile_options(3dRenderer
