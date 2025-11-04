@@ -4,14 +4,26 @@
 #include "ModelReader.h"
 #include "TextureMap.h"
 #include "Utils.h"
+#include "glm/detail/func_geometric.hpp"
+#include "glm/detail/type_mat.hpp"
+#include "glm/detail/type_vec.hpp"
 #include <algorithm>
 #include <vector>
 
 #define WIDTH 960
 #define HEIGHT 720
 
+struct Camera {
+    glm::vec3 position;
+    glm::mat3 orientation;
+    bool orbit;
+};
+
+Camera camera;
+double cameraAngle = 0;
+
 std::vector<ModelTriangle> cornellBox;
-std::array<std::array<float, WIDTH>, HEIGHT> zDepth = {0};
+std::array<std::array<float, WIDTH>, HEIGHT> zDepth = {{{0}}};
 
 std::vector<float> interpolateSingleFloats(float from, float to, int numberOfValues) {
     std::vector<float> interpolated = {};
@@ -49,8 +61,10 @@ void drawLine(DrawingWindow &window, CanvasPoint from, CanvasPoint to, Colour co
         int x = round(from.x + xStep * i);
         int y = round(from.y + yStep * i);
         float z = from.depth + zStep * i;
+        if (x < 0 || x >= window.width || y < 0 || y >= window.height)
+            continue;
         if (-z >= zDepth[y][x]) {
-            window.setPixelColour(round(from.x + xStep * i), round(from.y + yStep * i), colour.value());
+            window.setPixelColour(x, y, colour.value());
             zDepth[y][x] = -z;
         }
     }
@@ -161,7 +175,8 @@ void drawTexturedTriangle(DrawingWindow &window, CanvasTriangle triangle, Canvas
 }
 
 CanvasPoint projectVertexOntoCanvasPoint(glm::vec3 cameraPosition, float focalLength, glm::vec3 vertexPosition) {
-    glm::vec3 transposedPosition = vertexPosition - cameraPosition;
+    glm::vec3 cameraToVertex = vertexPosition - cameraPosition;
+    glm::vec3 transposedPosition = cameraToVertex * camera.orientation;
     float x = focalLength * transposedPosition.x / transposedPosition.z;
     float y = focalLength * transposedPosition.y / transposedPosition.z;
 
@@ -173,28 +188,41 @@ CanvasPoint projectVertexOntoCanvasPoint(glm::vec3 cameraPosition, float focalLe
 }
 
 void drawModel(DrawingWindow &window, std::vector<ModelTriangle> &model) {
-    glm::vec3 cameraPosition = {0.0, 0.0, 4.0};
     for (ModelTriangle modelTriangle : model) {
         CanvasTriangle triangle =
-            CanvasTriangle(projectVertexOntoCanvasPoint(cameraPosition, 2.0, modelTriangle.vertices[0]),
-                           projectVertexOntoCanvasPoint(cameraPosition, 2.0, modelTriangle.vertices[1]),
-                           projectVertexOntoCanvasPoint(cameraPosition, 2.0, modelTriangle.vertices[2]));
+            CanvasTriangle(projectVertexOntoCanvasPoint(camera.position, 2.0, modelTriangle.vertices[0]),
+                           projectVertexOntoCanvasPoint(camera.position, 2.0, modelTriangle.vertices[1]),
+                           projectVertexOntoCanvasPoint(camera.position, 2.0, modelTriangle.vertices[2]));
         // drawStrokedTriangle(window, triangle, Colour(255, 255, 255)); // wireframe
         drawFilledTriangle(window, triangle, modelTriangle.colour);
     }
 }
 
+void lookAt(glm::vec3 focusPoint) {
+    glm::vec3 forwardVector = glm::normalize(camera.position - focusPoint);
+    glm::vec3 rightVector = glm::cross({0, 1, 0}, forwardVector);
+    glm::vec3 upVector = glm::cross(forwardVector, rightVector);
+    camera.orientation = {rightVector, upVector, forwardVector};
+}
+
 void draw(DrawingWindow &window) {
-    // window.clearPixels();
+    window.clearPixels();
+    zDepth = {{{0}}};
+    drawModel(window, cornellBox);
+
+    if (camera.orbit) {
+        const double turnSpeed = 3.141592653589793 / 240;
+        cameraAngle += turnSpeed;
+        camera.position = {4 * sin(cameraAngle), 0, 4 * cos(cameraAngle)};
+        lookAt({0, 0, 0});
+    }
 
     /*
     CanvasTriangle triangle = CanvasTriangle(CanvasPoint(320, 20), CanvasPoint(600, 460), CanvasPoint(20, 300));
-    CanvasTriangle textureTriangle = CanvasTriangle(CanvasPoint(195, 5), CanvasPoint(395, 380), CanvasPoint(65, 330));
-    TextureMap texture = TextureMap("resources/texture.ppm");
-    drawTexturedTriangle(window, triangle, textureTriangle, texture);
-    */
+    CanvasTriangle textureTriangle = CanvasTriangle(CanvasPoint(195, 5), CanvasPoint(395, 380), CanvasPoint(65,
+    330)); TextureMap texture = TextureMap("resources/texture.ppm"); drawTexturedTriangle(window, triangle,
+    textureTriangle, texture);
 
-    /*
     for (size_t y = 0; y < window.height; y++) {
         for (size_t x = 0; x < window.width; x++) {
             glm::vec3 pixelValues =
@@ -214,15 +242,39 @@ void draw(DrawingWindow &window) {
 
 void handleEvent(SDL_Event event, DrawingWindow &window) {
     if (event.type == SDL_KEYDOWN) {
-        if (event.key.keysym.sym == SDLK_LEFT)
-            std::cout << "LEFT" << std::endl;
-        else if (event.key.keysym.sym == SDLK_RIGHT)
-            std::cout << "RIGHT" << std::endl;
-        else if (event.key.keysym.sym == SDLK_UP)
-            std::cout << "UP" << std::endl;
-        else if (event.key.keysym.sym == SDLK_DOWN)
-            std::cout << "DOWN" << std::endl;
-        else if (event.key.keysym.sym == SDLK_u) {
+        const double angle = 3.141592653589793 / 8;
+        const float moveDistance = 0.5;
+        if (event.key.keysym.sym == SDLK_LEFT) {
+            // Rotate around y
+            glm::mat3 rotationMatrix = {{cos(angle), 0, -sin(angle)}, {0, 1, 0}, {sin(angle), 0, cos(angle)}};
+            camera.orientation = rotationMatrix * camera.orientation;
+        } else if (event.key.keysym.sym == SDLK_RIGHT) {
+            // Rotate around y
+            glm::mat3 rotationMatrix = {{cos(angle), 0, sin(angle)}, {0, 1, 0}, {-sin(angle), 0, cos(angle)}};
+            camera.orientation = rotationMatrix * camera.orientation;
+        } else if (event.key.keysym.sym == SDLK_UP) {
+            // Rotate around x
+            glm::mat3 rotationMatrix = {{1, 0, 0}, {0, cos(angle), sin(angle)}, {0, -sin(angle), cos(angle)}};
+            camera.orientation = rotationMatrix * camera.orientation;
+        } else if (event.key.keysym.sym == SDLK_DOWN) {
+            // Rotate around x
+            glm::mat3 rotationMatrix = {{1, 0, 0}, {0, cos(angle), -sin(angle)}, {0, sin(angle), cos(angle)}};
+            camera.orientation = rotationMatrix * camera.orientation;
+        } else if (event.key.keysym.sym == SDLK_w) {
+            camera.position.z -= moveDistance;
+        } else if (event.key.keysym.sym == SDLK_a) {
+            camera.position.x -= moveDistance;
+        } else if (event.key.keysym.sym == SDLK_s) {
+            camera.position.z += moveDistance;
+        } else if (event.key.keysym.sym == SDLK_d) {
+            camera.position.x += moveDistance;
+        } else if (event.key.keysym.sym == SDLK_c) {
+            camera.position.y += moveDistance;
+        } else if (event.key.keysym.sym == SDLK_x) {
+            camera.position.y -= moveDistance;
+        } else if (event.key.keysym.sym == SDLK_o) {
+            camera.orbit = !camera.orbit;
+        } else if (event.key.keysym.sym == SDLK_u) {
             CanvasPoint v0 = CanvasPoint(rand() % window.width, rand() % window.height);
             CanvasPoint v1 = CanvasPoint(rand() % window.width, rand() % window.height);
             CanvasPoint v2 = CanvasPoint(rand() % window.width, rand() % window.height);
@@ -246,14 +298,11 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
 int main(int argc, char *argv[]) {
     DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 
+    camera.position = {0.0, 0.0, 4.0};
+    camera.orientation = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+    camera.orbit = false;
     std::map<std::string, Colour> colourMap = readMtl("cornell-box");
     cornellBox = readObj("cornell-box", colourMap, 0.35);
-    drawModel(window, cornellBox);
-    /*
-    for (ModelTriangle triangle : cornellBox) {
-        std::cout << triangle << std::endl;
-    }
-    */
 
     SDL_Event event;
     while (true) {
