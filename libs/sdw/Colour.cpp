@@ -1,4 +1,5 @@
 #include "Colour.h"
+#include <cmath>
 #include <cstdint>
 #include <utility>
 
@@ -11,4 +12,6 @@ std::ostream &operator<<(std::ostream &os, const Colour &colour) {
     return os;
 }
 
-uint32_t Colour::value() { return red << 16 | green << 8 | blue; }
+uint32_t Colour::value(float brightness) {
+    return int(red * brightness) << 16 | int(green * brightness) << 8 | int(blue * brightness);
+}

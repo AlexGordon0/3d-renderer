@@ -42,12 +42,16 @@ std::vector<ModelTriangle> readObj(std::string filename, std::map<std::string, C
         if (line[0] == 'f') {
             std::vector<std::string> tokens = split(line.erase(0, 1), '/');
             std::array<int, 3> indexes = {std::stoi(tokens[0]), std::stoi(tokens[1]), std::stoi(tokens[2])};
-            triangles.push_back(ModelTriangle(vertices[indexes[0] - 1], vertices[indexes[1] - 1],
-                                              vertices[indexes[2] - 1], colour));
+            glm::vec3 v1 = vertices[indexes[0] - 1];
+            glm::vec3 v2 = vertices[indexes[1] - 1];
+            glm::vec3 v3 = vertices[indexes[2] - 1];
+            glm::vec3 normal = glm::normalize(glm::cross(v2 - v1, v3 - v1));
+            ModelTriangle triangle = ModelTriangle(v1, v2, v3, colour);
+            triangle.normal = normal;
+            triangles.push_back(triangle);
         }
     }
 
     file.close();
     return triangles;
 }
-

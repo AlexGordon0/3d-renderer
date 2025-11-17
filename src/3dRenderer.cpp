@@ -5,12 +5,14 @@
 #include "RayTriangleIntersection.h"
 #include "TextureMap.h"
 #include "Utils.h"
+#include "glm/detail/func_exponential.hpp"
 #include "glm/detail/func_geometric.hpp"
 #include "glm/detail/type_mat.hpp"
 #include "glm/detail/type_vec.hpp"
+#include "glm/gtc/constants.hpp"
 #include "glm/gtx/string_cast.hpp"
 #include <algorithm>
-#include <cassert>
+#include <cmath>
 #include <vector>
 
 #define WIDTH 960
@@ -27,8 +29,7 @@ Camera camera;
 double cameraAngle = 0;
 
 int mode;
-
-glm::vec3 lightSource = {0, 0.9, 0};
+glm::vec3 lightSource = {0, 0.0, 0};
 
 std::vector<ModelTriangle> cornellBox;
 const float scale = 160.0;
@@ -122,6 +123,7 @@ void drawFilledTriangle(DrawingWindow &window, CanvasTriangle triangle, Colour c
                  colour);
     }
 
+    // Outline triangle
     // drawStrokedTriangle(window, triangle, Colour(255, 255, 255));
 }
 
@@ -240,12 +242,9 @@ RayTriangleIntersection getClosestValidIntersection(glm::vec3 position, glm::vec
         if (t < 0.0001 || t != t)
             continue;
 
-        glm::vec3 r1 = t * direction;
-        glm::vec3 r2 = (triangle.vertices[0] + u * (triangle.vertices[1] - triangle.vertices[0]) +
-                        v * (triangle.vertices[2] - triangle.vertices[0])) -
-                       position;
+        glm::vec3 r = t * direction;
 
-        RayTriangleIntersection intersection = RayTriangleIntersection(r1 + position, t, triangle, i);
+        RayTriangleIntersection intersection = RayTriangleIntersection(r + position, t, triangle, i);
         if (closestIntersection.distanceFromCamera == -1 ||
             intersection.distanceFromCamera < closestIntersection.distanceFromCamera) {
             closestIntersection = intersection;
@@ -254,27 +253,40 @@ RayTriangleIntersection getClosestValidIntersection(glm::vec3 position, glm::vec
     return closestIntersection;
 }
 
-glm::vec3 getRayDirection(glm::vec3 startPoint, glm::vec3 endPoint) { return glm::normalize(endPoint - startPoint); }
-
 void drawRaytracedScene(DrawingWindow &window) {
     window.clearPixels();
     for (int y = 0; y < window.height; y++) {
         for (int x = 0; x < window.width; x++) {
 
             glm::vec3 endPoint = {x - window.width / 2.0, -(y - window.height / 2.0), -camera.focalLength * scale};
-            glm::vec3 direction = camera.orientation * getRayDirection(camera.position, endPoint);
+            glm::vec3 direction = camera.orientation * glm::normalize(endPoint - camera.position);
             RayTriangleIntersection intersection = getClosestValidIntersection(camera.position, direction);
 
             if (intersection.distanceFromCamera != -1) {
-                direction = getRayDirection(intersection.intersectionPoint, lightSource);
+
+                direction = glm::normalize(lightSource - intersection.intersectionPoint);
+                float distanceToLight = length(lightSource - intersection.intersectionPoint);
                 RayTriangleIntersection lightIntersection =
                     getClosestValidIntersection(intersection.intersectionPoint, direction);
 
-                float distanceToLight = glm::distance(intersection.intersectionPoint, lightSource);
+                float ambient = 0.1;
 
+                float proximity = 1 / ((2 / 7.0f) * glm::pi<double>() * (glm::pow(distanceToLight, 2)));
+                proximity = glm::clamp(proximity, 0.0f, 1.0f);
+
+                glm::vec3 normal = intersection.intersectedTriangle.normal;
+                float diffuse = glm::dot(normal, direction);
+                diffuse = glm::max(0.0f, diffuse);
+
+                float brightness = proximity * diffuse + ambient;
+                brightness = glm::clamp(brightness, 0.0f, 1.0f);
+
+                // Shadow implemetation
                 if (lightIntersection.distanceFromCamera == -1 ||
                     lightIntersection.distanceFromCamera > distanceToLight) {
-                    window.setPixelColour(x, y, intersection.intersectedTriangle.colour.value());
+                    window.setPixelColour(x, y, intersection.intersectedTriangle.colour.value(brightness));
+                } else {
+                    window.setPixelColour(x, y, intersection.intersectedTriangle.colour.value(0.1));
                 }
             }
         }
@@ -287,7 +299,7 @@ void drawRasterisedScene(DrawingWindow &window) {
     drawModel(window, cornellBox);
 
     if (camera.orbit) {
-        const double turnSpeed = 3.141592653589793 / 240;
+        const double turnSpeed = glm::pi<double>() / 240;
         cameraAngle += turnSpeed;
         camera.position = {4 * sin(cameraAngle), 0, 4 * cos(cameraAngle)};
         lookAt({0, 0, 0});
@@ -319,25 +331,21 @@ void drawRasterisedScene(DrawingWindow &window) {
 void handleEvent(SDL_Event event, DrawingWindow &window) {
     if (event.type == SDL_KEYDOWN) {
 
-        const double angle = 3.141592653589793 / 8;
+        const double angle = glm::pi<double>() / 8;
         const float moveDistance = 0.5;
 
         if (event.key.keysym.sym == SDLK_LEFT) {
-            // Rotate around y
             glm::mat3 rotationMatrix = {{cos(angle), 0, -sin(angle)}, {0, 1, 0}, {sin(angle), 0, cos(angle)}};
-            camera.orientation = rotationMatrix * camera.orientation;
+            camera.orientation = camera.orientation * rotationMatrix;
         } else if (event.key.keysym.sym == SDLK_RIGHT) {
-            // Rotate around y
             glm::mat3 rotationMatrix = {{cos(angle), 0, sin(angle)}, {0, 1, 0}, {-sin(angle), 0, cos(angle)}};
-            camera.orientation = rotationMatrix * camera.orientation;
+            camera.orientation = camera.orientation * rotationMatrix;
         } else if (event.key.keysym.sym == SDLK_UP) {
-            // Rotate around x
             glm::mat3 rotationMatrix = {{1, 0, 0}, {0, cos(angle), sin(angle)}, {0, -sin(angle), cos(angle)}};
-            camera.orientation = rotationMatrix * camera.orientation;
+            camera.orientation = camera.orientation * rotationMatrix;
         } else if (event.key.keysym.sym == SDLK_DOWN) {
-            // Rotate around x
             glm::mat3 rotationMatrix = {{1, 0, 0}, {0, cos(angle), -sin(angle)}, {0, sin(angle), cos(angle)}};
-            camera.orientation = rotationMatrix * camera.orientation;
+            camera.orientation = camera.orientation * rotationMatrix;
         }
 
         else if (event.key.keysym.sym == SDLK_w) {
@@ -375,11 +383,15 @@ void handleEvent(SDL_Event event, DrawingWindow &window) {
         else if (event.key.keysym.sym == SDLK_m) {
             mode = (mode + 1) % 3;
         }
-         
+
         else if (event.key.keysym.sym == SDLK_r) {
             // Reset camera position
             camera.position = {0, 0, 4};
             camera.orientation = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+        }
+
+        else if (event.key.keysym.sym == SDLK_l) {
+            // implement light movement
         }
     }
 
