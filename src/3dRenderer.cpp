@@ -29,7 +29,7 @@ Camera camera;
 double cameraAngle = 0;
 
 int mode;
-glm::vec3 lightSource = {0, 0.0, 0};
+glm::vec3 lightSource = {0, 0.9, 0};
 
 std::vector<ModelTriangle> cornellBox;
 const float scale = 160.0;
@@ -259,15 +259,15 @@ void drawRaytracedScene(DrawingWindow &window) {
         for (int x = 0; x < window.width; x++) {
 
             glm::vec3 endPoint = {x - window.width / 2.0, -(y - window.height / 2.0), -camera.focalLength * scale};
-            glm::vec3 direction = camera.orientation * glm::normalize(endPoint - camera.position);
-            RayTriangleIntersection intersection = getClosestValidIntersection(camera.position, direction);
+            glm::vec3 cameraToTriangle = camera.orientation * glm::normalize(endPoint - camera.position);
+            RayTriangleIntersection intersection = getClosestValidIntersection(camera.position, cameraToTriangle);
 
             if (intersection.distanceFromCamera != -1) {
 
-                direction = glm::normalize(lightSource - intersection.intersectionPoint);
+                glm::vec3 triangleToLight = glm::normalize(lightSource - intersection.intersectionPoint);
                 float distanceToLight = length(lightSource - intersection.intersectionPoint);
                 RayTriangleIntersection lightIntersection =
-                    getClosestValidIntersection(intersection.intersectionPoint, direction);
+                    getClosestValidIntersection(intersection.intersectionPoint, triangleToLight);
 
                 float ambient = 0.1;
 
@@ -275,19 +275,25 @@ void drawRaytracedScene(DrawingWindow &window) {
                 proximity = glm::clamp(proximity, 0.0f, 1.0f);
 
                 glm::vec3 normal = intersection.intersectedTriangle.normal;
-                float diffuse = glm::dot(normal, direction);
-                diffuse = glm::max(0.0f, diffuse);
+                float diffuse = glm::dot(normal, triangleToLight);
+                diffuse = glm::clamp(diffuse, 0.0f, 1.0f);
 
-                float brightness = proximity * diffuse + ambient;
+                glm::vec3 reflectionVector =
+                    glm::normalize(-triangleToLight - 2.0f * normal * glm::dot(-triangleToLight, normal));
+                float specular = glm::dot(-cameraToTriangle, reflectionVector);
+                specular = glm::clamp(specular, 0.0f, 1.0f);
+                specular = glm::pow(specular, 256);
+
+                float brightness = 0.3 * proximity + 0.6 * diffuse + 0.1 * specular;
                 brightness = glm::clamp(brightness, 0.0f, 1.0f);
 
                 // Shadow implemetation
-                if (lightIntersection.distanceFromCamera == -1 ||
-                    lightIntersection.distanceFromCamera > distanceToLight) {
+                //if (lightIntersection.distanceFromCamera == -1 ||
+                    //lightIntersection.distanceFromCamera > distanceToLight) {
                     window.setPixelColour(x, y, intersection.intersectedTriangle.colour.value(brightness));
-                } else {
-                    window.setPixelColour(x, y, intersection.intersectedTriangle.colour.value(0.1));
-                }
+                //} else {
+                    //window.setPixelColour(x, y, intersection.intersectedTriangle.colour.value(0.1));
+                //}
             }
         }
     }
