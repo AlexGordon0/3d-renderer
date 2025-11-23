@@ -28,7 +28,7 @@ std::vector<ModelTriangle> readObj(std::string filename, std::map<std::string, C
     std::string file_path = "resources/models/" + filename + ".obj";
     std::ifstream file(file_path);
     std::string line;
-    Colour colour;
+    Colour colour = Colour(255, 0, 0);
     while (std::getline(file, line)) {
         if (line[0] == 'u') {
             std::vector<std::string> tokens = split(line, ' ');
