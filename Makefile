@@ -4,11 +4,7 @@ BUILD_DIR := build
 
 
 # Define the names of key files
-PROJECT_SOURCE_FILES := \
-	src/3dRenderer.cpp \
-	src/Interpolation.cpp \
-	src/Shapes.cpp \
-	src/Texturer.cpp
+PROJECT_SOURCE_FILES := $(wildcard src/*.cpp)
 PROJECT_OBJECT_FILES := $(patsubst src/%.cpp, $(BUILD_DIR)/%.o, $(PROJECT_SOURCE_FILES))
 EXECUTABLE := $(BUILD_DIR)/$(PROJECT_NAME)
 SDW_DIR := ./libs/sdw/
