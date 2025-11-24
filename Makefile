@@ -35,30 +35,34 @@ SDW_LINKER_FLAGS := $(SDW_OBJECT_FILES)
 default: debug
 
 # Rule to compile and link for use with a debugger (although works fine even if you aren't using a debugger !)
+debug: EXTRA_COMPILE_FLAGS := $(DEBUG_OPTIONS)
 debug: $(PROJECT_OBJECT_FILES) $(SDW_OBJECT_FILES)
 	$(COMPILER) $(LINKER_OPTIONS) $(DEBUG_OPTIONS) -o $(EXECUTABLE) $^ $(SDL_LINKER_FLAGS)
 	./$(EXECUTABLE)
 
 # Rule to help find runtime errors (when you get a segmentation fault)
 # NOTE: This needs the "Address Sanitizer" library to be installed in order to work (so it might not work on lab machines !)
+diagnostic: EXTRA_COMPILE_FLAGS := $(FUSSY_OPTIONS) $(SANITIZER_OPTIONS)
 diagnostic: $(PROJECT_OBJECT_FILES) $(SDW_OBJECT_FILES)
 	$(COMPILER) $(LINKER_OPTIONS) $(FUSSY_OPTIONS) $(SANITIZER_OPTIONS) -o $(EXECUTABLE) $^ $(SDL_LINKER_FLAGS)
 	./$(EXECUTABLE)
 
 # Rule to build for high performance executable (for manually testing interaction)
+speedy: EXTRA_COMPILE_FLAGS := $(SPEEDY_OPTIONS)
 speedy: $(PROJECT_OBJECT_FILES) $(SDW_OBJECT_FILES)
 	$(COMPILER) $(LINKER_OPTIONS) $(SPEEDY_OPTIONS) -o $(EXECUTABLE) $^ $(SDL_LINKER_FLAGS)
 	./$(EXECUTABLE)
 
 # Rule to compile and link for final production release
+production: EXTRA_COMPILE_FLAGS :=
 production: $(PROJECT_OBJECT_FILES) $(SDW_OBJECT_FILES)
-	$(COMPILER) -$(LINKER_OPTIONS) o $(EXECUTABLE) $^ $(SDL_LINKER_FLAGS)
+	$(COMPILER) -$(LINKER_OPTIONS) -o $(EXECUTABLE) $^ $(SDL_LINKER_FLAGS)
 	./$(EXECUTABLE)
 
 # Rule for building project source files
 $(BUILD_DIR)/%.o: src/%.cpp
 	@mkdir -p $(BUILD_DIR)
-	$(COMPILER) $(COMPILER_OPTIONS) -c -o $@ $^ $(SDW_COMPILER_FLAGS) $(SDL_COMPILER_FLAGS) $(GLM_COMPILER_FLAGS)
+	$(COMPILER) $(COMPILER_OPTIONS) $(EXTRA_COMPILE_FLAGS) -c -o $@ $^ $(SDW_COMPILER_FLAGS) $(SDL_COMPILER_FLAGS) $(GLM_COMPILER_FLAGS)
 
 # Rule for building all of the the DisplayWindow classes
 $(BUILD_DIR)/%.o: $(SDW_DIR)%.cpp
