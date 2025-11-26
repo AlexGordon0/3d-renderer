@@ -1,7 +1,6 @@
 #include "ModelReader.h"
 #include "Utils.h"
 #include "glm/detail/type_vec3.hpp"
-#include "glm/gtc/quaternion.hpp"
 #include "glm/gtx/string_cast.hpp"
 #include <fstream>
 
@@ -73,7 +72,6 @@ std::vector<ModelTriangle> readObj(std::string filename, std::map<std::string, C
             averagedNormal += triangles[triangleIndex].normal;
         }
         averagedNormal = glm::normalize(averagedNormal);
-        //std::cout << averagedNormal.length() << std::endl;
         for (int triangleIndex : trianglesWithVertex[vertexIndex]) {
             int index = -1;
             for (int i = 0; i < 3; i++) {

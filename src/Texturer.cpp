@@ -1,11 +1,9 @@
 #include "Texturer.h"
-#include "Colour.h"
 #include "Interpolation.h"
 #include "Shapes.h"
 #include <algorithm>
 
-uint32_t getTexturePixelValue(DrawingWindow &window, glm::vec3 relativeCoordinates, CanvasTriangle textureTriangle,
-                              TextureMap &texture) {
+Colour getTexturePixelValue(glm::vec3 relativeCoordinates, CanvasTriangle textureTriangle, TextureMap &texture) {
     CanvasPoint topVertex = textureTriangle.vertices[0];
     CanvasPoint middleVertex = textureTriangle.vertices[1];
     CanvasPoint bottomVertex = textureTriangle.vertices[2];
@@ -14,11 +12,11 @@ uint32_t getTexturePixelValue(DrawingWindow &window, glm::vec3 relativeCoordinat
                          topVertex.x * relativeCoordinates.z,
                      middleVertex.y * relativeCoordinates.x + bottomVertex.y * relativeCoordinates.y +
                          topVertex.y * relativeCoordinates.z);
-    return texture.pixels[round(texturePixel.y) * texture.width + round(texturePixel.x)];
+    uint32_t colourValue = texture.pixels[round(texturePixel.y) * texture.width + round(texturePixel.x)];
+    return Colour(colourValue >> 16 & 0xff, colourValue >> 8 & 0xff, colourValue & 0xff);
 }
 
-void drawTexturedTriangle(Scene &scene, CanvasTriangle triangle, CanvasTriangle textureTriangle,
-                          TextureMap &texture) {
+void drawTexturedTriangle(Scene &scene, CanvasTriangle triangle, CanvasTriangle textureTriangle, TextureMap &texture) {
     DrawingWindow *window = &scene.window;
     std::sort(triangle.vertices.begin(), triangle.vertices.end(),
               [](CanvasPoint a, CanvasPoint b) { return a.y < b.y; });
@@ -41,8 +39,8 @@ void drawTexturedTriangle(Scene &scene, CanvasTriangle triangle, CanvasTriangle 
                 glm::vec2(topVertex.x, topVertex.y), glm::vec2(middleVertex.x, middleVertex.y),
                 glm::vec2(bottomVertex.x, bottomVertex.y), glm::vec2(x, y));
 
-            uint32_t pixelValue = getTexturePixelValue(*window, relativeCoordinates, textureTriangle, texture);
-            window->setPixelColour(x, y, pixelValue);
+            Colour pixelValue = getTexturePixelValue(relativeCoordinates, textureTriangle, texture);
+            window->setPixelColour(x, y, pixelValue.value());
         }
     }
 
@@ -55,8 +53,8 @@ void drawTexturedTriangle(Scene &scene, CanvasTriangle triangle, CanvasTriangle 
                 glm::vec2(topVertex.x, topVertex.y), glm::vec2(middleVertex.x, middleVertex.y),
                 glm::vec2(bottomVertex.x, bottomVertex.y), glm::vec2(x, y));
 
-            uint32_t pixelValue = getTexturePixelValue(*window, relativeCoordinates, textureTriangle, texture);
-            window->setPixelColour(x, y, pixelValue);
+            Colour pixelValue = getTexturePixelValue(relativeCoordinates, textureTriangle, texture);
+            window->setPixelColour(x, y, pixelValue.value());
         }
     }
 

@@ -1,10 +1,10 @@
 #pragma once
 
-#include "TextureMap.h"
-#include "DrawingWindow.h"
 #include "CanvasTriangle.h"
+#include "DrawingWindow.h"
+#include "Colour.h"
+#include "TextureMap.h"
 
-uint32_t getTexturePixelValue(DrawingWindow &window, glm::vec3 relativeCoordinates, CanvasTriangle textureTriangle,
-                              TextureMap &texture);
+Colour getTexturePixelValue(glm::vec3 relativeCoordinates, CanvasTriangle textureTriangle, TextureMap &texture);
 void drawTexturedTriangle(DrawingWindow &window, CanvasTriangle triangle, CanvasTriangle textureTriangle,
                           TextureMap &texture);

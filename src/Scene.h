@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Camera.h"
+#include "TextureMap.h"
 #include "DrawingWindow.h"
 #include "ModelTriangle.h"
 
@@ -11,6 +12,7 @@ struct Scene {
     std::vector<ModelTriangle> model;
     glm::vec3 lightSource;
     std::vector<std::vector<float>> zDepth;
+    TextureMap texture;
 
     Scene(DrawingWindow _window, Camera _camera, int _mode, std::vector<ModelTriangle> _model, glm::vec3 _lightSource) {
         window = _window;

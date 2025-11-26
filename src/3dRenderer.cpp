@@ -7,13 +7,14 @@
 #include "Raytracing.h"
 #include "Scene.h"
 #include "Shapes.h"
+#include "Texturer.h"
 #include "Utils.h"
 #include "glm/detail/func_geometric.hpp"
 #include "glm/detail/type_mat.hpp"
 #include "glm/detail/type_vec.hpp"
 #include "glm/gtc/constants.hpp"
-#include "glm/gtc/quaternion.hpp"
 #include "glm/gtx/string_cast.hpp"
+#include <cstring>
 
 #define WIDTH 960
 #define HEIGHT 720
@@ -74,17 +75,31 @@ void drawRaytracedScene(Scene &scene) {
                 float brightness = triangle.vertexBrightness[0] * barycentric.z +
                                    triangle.vertexBrightness[1] * barycentric.x +
                                    triangle.vertexBrightness[2] * barycentric.y;
-                                   */
+                */
 
                 float minimumThreshold = 0.1f;
                 brightness = glm::clamp(brightness, minimumThreshold, 1.0f);
+                Colour colour = intersection.intersectedTriangle.colour;
+
+                if (intersection.triangleIndex == 6) {
+                    CanvasTriangle textureTriangle =
+                        CanvasTriangle(CanvasPoint(scene.texture.width, scene.texture.height), CanvasPoint(0, 0),
+                                       CanvasPoint(0, scene.texture.height));
+                    colour = getTexturePixelValue(barycentric, textureTriangle, scene.texture);
+                }
+                if (intersection.triangleIndex == 7) {
+                    CanvasTriangle textureTriangle =
+                        CanvasTriangle(CanvasPoint(scene.texture.width, scene.texture.height),
+                                       CanvasPoint(scene.texture.width, 0), CanvasPoint(0, 0));
+                    colour = getTexturePixelValue(barycentric, textureTriangle, scene.texture);
+                }
 
                 // Shadow implemetation
                 if (lightIntersection.distanceFromCamera == -1 ||
                     lightIntersection.distanceFromCamera > distanceToLight) {
-                    scene.window.setPixelColour(x, y, intersection.intersectedTriangle.colour.value(brightness));
+                    scene.window.setPixelColour(x, y, colour.value(brightness));
                 } else {
-                    scene.window.setPixelColour(x, y, intersection.intersectedTriangle.colour.value(minimumThreshold));
+                    scene.window.setPixelColour(x, y, colour.value(minimumThreshold));
                 }
             }
         }
@@ -213,7 +228,7 @@ int main(int argc, char *argv[]) {
     DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 
     Camera camera;
-    camera.position = {0.0, 1.0, 4.0};
+    camera.position = {0.0, 0.0, 4.0};
     camera.orientation = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
     camera.focalLength = 2.0;
     camera.orbit = false;
@@ -221,11 +236,12 @@ int main(int argc, char *argv[]) {
     int mode = 1;
 
     std::map<std::string, Colour> colourMap = readMtl("cornell-box");
-    // std::vector<ModelTriangle> model = readObj("cornell-box", colourMap, 0.35);
-    std::vector<ModelTriangle> model = readObj("sphere", colourMap, 1);
+    std::vector<ModelTriangle> model = readObj("cornell-box", colourMap, 0.35);
+    // std::vector<ModelTriangle> model = readObj("sphere", colourMap, 1);
 
-    glm::vec3 lightSource = {10, 0, 20};
+    glm::vec3 lightSource = {0, 0.9, 0};
     Scene scene = Scene(window, camera, mode, model, lightSource);
+    scene.texture = TextureMap("resources/texture.ppm");
     // Calculate vertex brightnesses before scene drawn
     calculateVertexBrightness(scene);
 
