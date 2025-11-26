@@ -12,6 +12,7 @@
 #include "glm/detail/type_mat.hpp"
 #include "glm/detail/type_vec.hpp"
 #include "glm/gtc/constants.hpp"
+#include "glm/gtc/quaternion.hpp"
 #include "glm/gtx/string_cast.hpp"
 
 #define WIDTH 960
@@ -46,11 +47,18 @@ void drawRaytracedScene(Scene &scene) {
                     getClosestValidIntersection(intersection.intersectionPoint, triangleToLight, scene.model);
                 float distanceToLight = length(scene.lightSource - intersection.intersectionPoint);
 
-                /*
                 float proximity = 1 / ((2 / 7.0f) * glm::pi<double>() * (glm::pow(distanceToLight, 2)));
                 proximity = glm::clamp(proximity, 0.0f, 1.0f);
 
-                glm::vec3 normal = intersection.intersectedTriangle.normal;
+                ModelTriangle triangle = intersection.intersectedTriangle;
+                glm::vec3 barycentric = convertToBarycentricCoordinates(
+                    triangle.vertices[0], triangle.vertices[1], triangle.vertices[2], intersection.intersectionPoint);
+
+                // glm::vec3 normal = intersection.intersectedTriangle.normal;
+                glm::vec3 normal = triangle.vertexNormals[0] * barycentric.z +
+                                   triangle.vertexNormals[1] * barycentric.x +
+                                   triangle.vertexNormals[2] * barycentric.y;
+                normal = glm::normalize(normal);
                 float diffuse = glm::dot(normal, triangleToLight);
                 diffuse = glm::clamp(diffuse, 0.0f, 1.0f);
 
@@ -61,15 +69,12 @@ void drawRaytracedScene(Scene &scene) {
                 specular = glm::pow(specular, 256);
 
                 float brightness = 0.3 * proximity + 0.6 * diffuse + 0.1 * specular;
-                */
 
-                ModelTriangle triangle = intersection.intersectedTriangle;
-                glm::vec3 barycentric = convertToBarycentricCoordinates(
-                    triangle.vertices[0], triangle.vertices[1], triangle.vertices[2], intersection.intersectionPoint);
-
+                /*
                 float brightness = triangle.vertexBrightness[0] * barycentric.z +
                                    triangle.vertexBrightness[1] * barycentric.x +
                                    triangle.vertexBrightness[2] * barycentric.y;
+                                   */
 
                 float minimumThreshold = 0.1f;
                 brightness = glm::clamp(brightness, minimumThreshold, 1.0f);
@@ -219,7 +224,7 @@ int main(int argc, char *argv[]) {
     // std::vector<ModelTriangle> model = readObj("cornell-box", colourMap, 0.35);
     std::vector<ModelTriangle> model = readObj("sphere", colourMap, 1);
 
-    glm::vec3 lightSource = {1, 0, 2};
+    glm::vec3 lightSource = {10, 0, 20};
     Scene scene = Scene(window, camera, mode, model, lightSource);
     // Calculate vertex brightnesses before scene drawn
     calculateVertexBrightness(scene);
@@ -238,6 +243,7 @@ int main(int argc, char *argv[]) {
             drawRasterisedScene(scene);
         } else {
             drawRaytracedScene(scene);
+            std::cout << "Frame" << std::endl;
         }
         // Need to render the frame at the end, or nothing actually gets shown on the screen !
         scene.window.renderFrame();

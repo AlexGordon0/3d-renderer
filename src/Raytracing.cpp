@@ -57,9 +57,9 @@ void calculateVertexBrightness(Scene &scene) {
                 glm::normalize(-vertexToLight - 2.0f * vertexNormal * glm::dot(-vertexToLight, vertexNormal));
             float specular = glm::dot(-cameraToVertex, reflectionVector);
             specular = glm::clamp(specular, 0.0f, 1.0f);
-            specular = glm::pow(specular, 256);
+            specular = glm::pow(specular, 1);
 
-            float brightness = 0.3 * proximity + 0.6 * diffuse + 0.1 * specular;
+            float brightness = 0.3 * proximity + 0.6 * diffuse + 1 * specular;
             float minimumThreshold = 0.1f;
             brightness = glm::clamp(brightness, minimumThreshold, 1.0f);
             triangle.vertexBrightness[j] = brightness;

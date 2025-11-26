@@ -68,12 +68,11 @@ std::vector<ModelTriangle> readObj(std::string filename, std::map<std::string, C
 
     // Find vertex normals
     for (int vertexIndex = 0; vertexIndex < trianglesWithVertex.size(); vertexIndex++) {
-        int numTriangles = trianglesWithVertex[vertexIndex].size();
         glm::vec3 averagedNormal = {0, 0, 0};
         for (int triangleIndex : trianglesWithVertex[vertexIndex]) {
             averagedNormal += triangles[triangleIndex].normal;
         }
-        averagedNormal = glm::normalize(averagedNormal / float(numTriangles));
+        averagedNormal = glm::normalize(averagedNormal);
         //std::cout << averagedNormal.length() << std::endl;
         for (int triangleIndex : trianglesWithVertex[vertexIndex]) {
             int index = -1;
