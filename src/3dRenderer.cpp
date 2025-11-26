@@ -3,66 +3,27 @@
 #include "Colour.h"
 #include "DrawingWindow.h"
 #include "ModelReader.h"
-#include "Rasterise.h"
-#include "RayTriangleIntersection.h"
+#include "Rasterising.h"
+#include "Raytracing.h"
 #include "Scene.h"
 #include "Shapes.h"
-#include "glm/detail/func_exponential.hpp"
+#include "Utils.h"
 #include "glm/detail/func_geometric.hpp"
 #include "glm/detail/type_mat.hpp"
 #include "glm/detail/type_vec.hpp"
 #include "glm/gtc/constants.hpp"
 #include "glm/gtx/string_cast.hpp"
-#include <cmath>
 
 #define WIDTH 960
 #define HEIGHT 720
 
 double cameraAngle = 0;
 
-glm::vec3 lightSource = {0, 0.9, 0};
-
 void lookAt(Camera &camera, glm::vec3 focusPoint) {
     glm::vec3 forwardVector = glm::normalize(camera.position - focusPoint);
     glm::vec3 rightVector = glm::cross({0, 1, 0}, forwardVector);
     glm::vec3 upVector = glm::cross(forwardVector, rightVector);
     camera.orientation = {rightVector, upVector, forwardVector};
-}
-
-RayTriangleIntersection getClosestValidIntersection(glm::vec3 position, glm::vec3 direction,
-                                                    std::vector<ModelTriangle> model) {
-    RayTriangleIntersection closestIntersection = RayTriangleIntersection({0, 0, 0}, -1, model[0], 0);
-    for (int i = 0; i < model.size(); i++) {
-        ModelTriangle triangle = model[i];
-        glm::vec3 e0 = triangle.vertices[1] - triangle.vertices[0];
-        glm::vec3 e1 = triangle.vertices[2] - triangle.vertices[0];
-        glm::vec3 SPVector = position - triangle.vertices[0];
-        glm::mat3 DEMatrix(-direction, e0, e1);
-        glm::vec3 possibleSolution = glm::inverse(DEMatrix) * SPVector;
-
-        float t = possibleSolution.x;
-        float u = possibleSolution.y;
-        float v = possibleSolution.z;
-
-        if (u < 0 || u > 1)
-            continue;
-        if (v < 0 || v > 1)
-            continue;
-        if (u + v > 1)
-            continue;
-        // Strange NaN check for when DEMatrix is singular
-        if (t < 0.0001 || t != t)
-            continue;
-
-        glm::vec3 r = t * direction;
-
-        RayTriangleIntersection intersection = RayTriangleIntersection(r + position, t, triangle, i);
-        if (closestIntersection.distanceFromCamera == -1 ||
-            intersection.distanceFromCamera < closestIntersection.distanceFromCamera) {
-            closestIntersection = intersection;
-        }
-    }
-    return closestIntersection;
 }
 
 void drawRaytracedScene(Scene &scene) {
@@ -80,11 +41,12 @@ void drawRaytracedScene(Scene &scene) {
 
             if (intersection.distanceFromCamera != -1) {
 
-                glm::vec3 triangleToLight = glm::normalize(lightSource - intersection.intersectionPoint);
-                float distanceToLight = length(lightSource - intersection.intersectionPoint);
+                glm::vec3 triangleToLight = glm::normalize(scene.lightSource - intersection.intersectionPoint);
                 RayTriangleIntersection lightIntersection =
                     getClosestValidIntersection(intersection.intersectionPoint, triangleToLight, scene.model);
+                float distanceToLight = length(scene.lightSource - intersection.intersectionPoint);
 
+                /*
                 float proximity = 1 / ((2 / 7.0f) * glm::pi<double>() * (glm::pow(distanceToLight, 2)));
                 proximity = glm::clamp(proximity, 0.0f, 1.0f);
 
@@ -99,6 +61,16 @@ void drawRaytracedScene(Scene &scene) {
                 specular = glm::pow(specular, 256);
 
                 float brightness = 0.3 * proximity + 0.6 * diffuse + 0.1 * specular;
+                */
+
+                ModelTriangle triangle = intersection.intersectedTriangle;
+                glm::vec3 barycentric = convertToBarycentricCoordinates(
+                    triangle.vertices[0], triangle.vertices[1], triangle.vertices[2], intersection.intersectionPoint);
+
+                float brightness = triangle.vertexBrightness[0] * barycentric.z +
+                                   triangle.vertexBrightness[1] * barycentric.x +
+                                   triangle.vertexBrightness[2] * barycentric.y;
+
                 float minimumThreshold = 0.1f;
                 brightness = glm::clamp(brightness, minimumThreshold, 1.0f);
 
@@ -236,7 +208,7 @@ int main(int argc, char *argv[]) {
     DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 
     Camera camera;
-    camera.position = {0.0, 0.0, 4.0};
+    camera.position = {0.0, 1.0, 4.0};
     camera.orientation = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
     camera.focalLength = 2.0;
     camera.orbit = false;
@@ -244,10 +216,13 @@ int main(int argc, char *argv[]) {
     int mode = 1;
 
     std::map<std::string, Colour> colourMap = readMtl("cornell-box");
-    std::vector<ModelTriangle> model = readObj("cornell-box", colourMap, 0.35);
-    // std::vector<ModelTriangle> model = readObj("sphere", colourMap, 1);
+    // std::vector<ModelTriangle> model = readObj("cornell-box", colourMap, 0.35);
+    std::vector<ModelTriangle> model = readObj("sphere", colourMap, 1);
 
-    Scene scene = Scene(window, camera, mode, model);
+    glm::vec3 lightSource = {1, 0, 2};
+    Scene scene = Scene(window, camera, mode, model, lightSource);
+    // Calculate vertex brightnesses before scene drawn
+    calculateVertexBrightness(scene);
 
     // RayTriangleIntersection intersection = getClosestValidIntersection(camera.position, {0, 0, -1});
     // if (intersection.distanceFromCamera != -1) {

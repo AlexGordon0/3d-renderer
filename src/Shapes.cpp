@@ -32,7 +32,6 @@ void drawStrokedTriangle(Scene &scene, CanvasTriangle triangle, Colour colour) {
 }
 
 void drawFilledTriangle(Scene &scene, CanvasTriangle triangle, Colour colour) {
-    DrawingWindow *window = &(scene.window);
     std::sort(triangle.vertices.begin(), triangle.vertices.end(),
               [](CanvasPoint a, CanvasPoint b) { return a.y < b.y; });
 
