@@ -5,5 +5,5 @@
 #include <vector>
 
 RayTriangleIntersection getClosestValidIntersection(glm::vec3 position, glm::vec3 direction,
-                                                    std::vector<ModelTriangle> model);
+                                                    std::vector<std::vector<ModelTriangle>> models);
 void calculateVertexBrightness(Scene &scene);

@@ -39,37 +39,46 @@ void drawRaytracedScene(Scene &scene) {
             glm::vec3 endPoint = {x - window.width / 2.0, -(y - window.height / 2.0), -camera.focalLength * scale};
             glm::vec3 cameraToTriangle = camera.orientation * glm::normalize(endPoint - camera.position);
             RayTriangleIntersection intersection =
-                getClosestValidIntersection(camera.position, cameraToTriangle, scene.model);
+                getClosestValidIntersection(camera.position, cameraToTriangle, scene.models);
 
             if (intersection.distanceFromCamera != -1) {
 
-                glm::vec3 triangleToLight = glm::normalize(scene.lightSource - intersection.intersectionPoint);
-                RayTriangleIntersection lightIntersection =
-                    getClosestValidIntersection(intersection.intersectionPoint, triangleToLight, scene.model);
-                float distanceToLight = length(scene.lightSource - intersection.intersectionPoint);
-
-                float proximity = 1 / ((2 / 7.0f) * glm::pi<double>() * (glm::pow(distanceToLight, 2)));
-                proximity = glm::clamp(proximity, 0.0f, 1.0f);
+                float totalBrightness = 0;
 
                 ModelTriangle triangle = intersection.intersectedTriangle;
                 glm::vec3 barycentric = convertToBarycentricCoordinates(
                     triangle.vertices[0], triangle.vertices[1], triangle.vertices[2], intersection.intersectionPoint);
 
-                // glm::vec3 normal = intersection.intersectedTriangle.normal;
-                glm::vec3 normal = triangle.vertexNormals[0] * barycentric.z +
-                                   triangle.vertexNormals[1] * barycentric.x +
-                                   triangle.vertexNormals[2] * barycentric.y;
-                normal = glm::normalize(normal);
-                float diffuse = glm::dot(normal, triangleToLight);
-                diffuse = glm::clamp(diffuse, 0.0f, 1.0f);
+                for (glm::vec3 lightSource : scene.lightSources) {
+                    glm::vec3 triangleToLight = glm::normalize(lightSource - intersection.intersectionPoint);
+                    RayTriangleIntersection lightIntersection =
+                        getClosestValidIntersection(intersection.intersectionPoint, triangleToLight, scene.models);
+                    float distanceToLight = length(lightSource - intersection.intersectionPoint);
 
-                glm::vec3 reflectionVector =
-                    glm::normalize(-triangleToLight - 2.0f * normal * glm::dot(-triangleToLight, normal));
-                float specular = glm::dot(-cameraToTriangle, reflectionVector);
-                specular = glm::clamp(specular, 0.0f, 1.0f);
-                specular = glm::pow(specular, 256);
+                    float proximity = 1 / ((2 / 7.0f) * glm::pi<double>() * (glm::pow(distanceToLight, 2)));
+                    proximity = glm::clamp(proximity, 0.0f, 1.0f);
 
-                float brightness = 0.3 * proximity + 0.6 * diffuse + 0.1 * specular;
+                    // glm::vec3 normal = intersection.intersectedTriangle.normal;
+                    glm::vec3 normal = triangle.vertexNormals[0] * barycentric.z +
+                                       triangle.vertexNormals[1] * barycentric.x +
+                                       triangle.vertexNormals[2] * barycentric.y;
+                    normal = glm::normalize(normal);
+                    float diffuse = glm::dot(normal, triangleToLight);
+                    diffuse = glm::clamp(diffuse, 0.0f, 1.0f);
+
+                    glm::vec3 reflectionVector =
+                        glm::normalize(-triangleToLight - 2.0f * normal * glm::dot(-triangleToLight, normal));
+                    float specular = glm::dot(-cameraToTriangle, reflectionVector);
+                    specular = glm::clamp(specular, 0.0f, 1.0f);
+                    specular = glm::pow(specular, 16);
+
+                    float brightness = 0.3 * proximity + 0.6 * diffuse + specular;
+
+                    if (lightIntersection.distanceFromCamera == -1 ||
+                        lightIntersection.distanceFromCamera > distanceToLight) {
+                        totalBrightness += brightness;
+                    }
+                }
 
                 /*
                 float brightness = triangle.vertexBrightness[0] * barycentric.z +
@@ -78,9 +87,10 @@ void drawRaytracedScene(Scene &scene) {
                 */
 
                 float minimumThreshold = 0.1f;
-                brightness = glm::clamp(brightness, minimumThreshold, 1.0f);
+                totalBrightness = glm::clamp(totalBrightness, minimumThreshold, 1.0f);
                 Colour colour = intersection.intersectedTriangle.colour;
 
+                // Floor texture mapping
                 if (intersection.triangleIndex == 6) {
                     CanvasTriangle textureTriangle =
                         CanvasTriangle(CanvasPoint(scene.texture.width, scene.texture.height), CanvasPoint(0, 0),
@@ -94,13 +104,7 @@ void drawRaytracedScene(Scene &scene) {
                     colour = getTexturePixelValue(barycentric, textureTriangle, scene.texture);
                 }
 
-                // Shadow implemetation
-                if (lightIntersection.distanceFromCamera == -1 ||
-                    lightIntersection.distanceFromCamera > distanceToLight) {
-                    scene.window.setPixelColour(x, y, colour.value(brightness));
-                } else {
-                    scene.window.setPixelColour(x, y, colour.value(minimumThreshold));
-                }
+                scene.window.setPixelColour(x, y, colour.value(totalBrightness));
             }
         }
     }
@@ -113,7 +117,7 @@ void drawRasterisedScene(Scene &scene) {
             scene.zDepth[i][j] = 0;
         }
     }
-    drawModel(scene);
+    drawModels(scene);
 
     if (scene.camera.orbit) {
         const double turnSpeed = glm::pi<double>() / 240;
@@ -236,11 +240,14 @@ int main(int argc, char *argv[]) {
     int mode = 1;
 
     std::map<std::string, Colour> colourMap = readMtl("cornell-box");
-    std::vector<ModelTriangle> model = readObj("cornell-box", colourMap, 0.35);
-    // std::vector<ModelTriangle> model = readObj("sphere", colourMap, 1);
+    std::vector<std::vector<ModelTriangle>> models = {};
+    models.push_back(readObj("cornell-box", colourMap, 0.35));
+    // models.push_back(readObj("sphere", colourMap, 1));
 
-    glm::vec3 lightSource = {0, 0.9, 0};
-    Scene scene = Scene(window, camera, mode, model, lightSource);
+    std::vector<glm::vec3> lightSources = {};
+    lightSources.push_back(glm::vec3(0, 0.9, 0));
+    // lightSources.push_back(glm::vec3(10, 2, 20));
+    Scene scene = Scene(window, camera, mode, models, lightSources);
     scene.texture = TextureMap("resources/texture.ppm");
     // Calculate vertex brightnesses before scene drawn
     calculateVertexBrightness(scene);

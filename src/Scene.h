@@ -1,25 +1,26 @@
 #pragma once
 
 #include "Camera.h"
-#include "TextureMap.h"
 #include "DrawingWindow.h"
 #include "ModelTriangle.h"
+#include "TextureMap.h"
 
 struct Scene {
     DrawingWindow window;
     Camera camera;
     int mode;
-    std::vector<ModelTriangle> model;
-    glm::vec3 lightSource;
+    std::vector<std::vector<ModelTriangle>> models;
+    std::vector<glm::vec3> lightSources;
     std::vector<std::vector<float>> zDepth;
     TextureMap texture;
 
-    Scene(DrawingWindow _window, Camera _camera, int _mode, std::vector<ModelTriangle> _model, glm::vec3 _lightSource) {
+    Scene(DrawingWindow _window, Camera _camera, int _mode, std::vector<std::vector<ModelTriangle>> _models,
+          std::vector<glm::vec3> _lightSources) {
         window = _window;
         camera = _camera;
         mode = _mode;
-        model = _model;
-        lightSource = _lightSource;
+        models = _models;
+        lightSources = _lightSources;
         for (int i = 0; i < _window.height; i++) {
             std::vector<float> row;
             for (int j = 0; j < _window.width; j++) {

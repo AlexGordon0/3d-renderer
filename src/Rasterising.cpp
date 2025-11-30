@@ -1,6 +1,6 @@
 #include "Rasterising.h"
-#include "Shapes.h"
 #include "CanvasTriangle.h"
+#include "Shapes.h"
 
 CanvasPoint projectVertexOntoCanvasPoint(Scene &scene, glm::vec3 vertexPosition) {
     Camera camera = scene.camera;
@@ -16,19 +16,19 @@ CanvasPoint projectVertexOntoCanvasPoint(Scene &scene, glm::vec3 vertexPosition)
     return CanvasPoint(-x + scene.window.width / 2.0, y + scene.window.height / 2.0, 1.0 / transposedPosition.z);
 }
 
-void drawModel(Scene &scene) {
-    std::vector<ModelTriangle> model = scene.model;
+void drawModels(Scene &scene) {
     int mode = scene.mode;
-    for (ModelTriangle modelTriangle : model) {
-        CanvasTriangle triangle = CanvasTriangle(
-            projectVertexOntoCanvasPoint(scene, modelTriangle.vertices[0]),
-            projectVertexOntoCanvasPoint(scene, modelTriangle.vertices[1]),
-            projectVertexOntoCanvasPoint(scene, modelTriangle.vertices[2]));
-        if (mode == 0) {
-            drawStrokedTriangle(scene, triangle, Colour(255, 255, 255)); // wireframe
-        } else if (mode == 1) {
-            drawFilledTriangle(scene, triangle, modelTriangle.colour);
+    for (std::vector<ModelTriangle> model : scene.models) {
+        for (ModelTriangle modelTriangle : model) {
+            CanvasTriangle triangle = CanvasTriangle(projectVertexOntoCanvasPoint(scene, modelTriangle.vertices[0]),
+                                                     projectVertexOntoCanvasPoint(scene, modelTriangle.vertices[1]),
+                                                     projectVertexOntoCanvasPoint(scene, modelTriangle.vertices[2]));
+            if (mode == 0) {
+                drawStrokedTriangle(scene, triangle, Colour(255, 255, 255)); // wireframe
+            } else if (mode == 1) {
+                drawFilledTriangle(scene, triangle, modelTriangle.colour);
+                std::cout << "2" << std::endl;
+            }
         }
     }
 }
-
