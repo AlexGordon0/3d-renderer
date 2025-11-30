@@ -27,7 +27,6 @@ void drawModels(Scene &scene) {
                 drawStrokedTriangle(scene, triangle, Colour(255, 255, 255)); // wireframe
             } else if (mode == 1) {
                 drawFilledTriangle(scene, triangle, modelTriangle.colour);
-                std::cout << "2" << std::endl;
             }
         }
     }

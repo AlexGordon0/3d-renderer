@@ -1,74 +1,67 @@
 PROJECT_NAME := 3dRenderer
 
-BUILD_DIR := build
+BUILD_DIR ?= build/debug
 
-
-# Define the names of key files
 PROJECT_SOURCE_FILES := $(wildcard src/*.cpp)
-PROJECT_OBJECT_FILES := $(patsubst src/%.cpp, $(BUILD_DIR)/%.o, $(PROJECT_SOURCE_FILES))
-EXECUTABLE := $(BUILD_DIR)/$(PROJECT_NAME)
+PROJECT_OBJECT_FILES = $(patsubst src/%.cpp, $(BUILD_DIR)/%.o, $(PROJECT_SOURCE_FILES))
+EXECUTABLE = $(BUILD_DIR)/$(PROJECT_NAME)
+
 SDW_DIR := ./libs/sdw/
 GLM_DIR := ./libs/glm-0.9.7.2/
 SDW_SOURCE_FILES := $(wildcard $(SDW_DIR)*.cpp)
-SDW_OBJECT_FILES := $(patsubst $(SDW_DIR)%.cpp, $(BUILD_DIR)/%.o, $(SDW_SOURCE_FILES))
+SDW_OBJECT_FILES = $(patsubst $(SDW_DIR)%.cpp, $(BUILD_DIR)/%.o, $(SDW_SOURCE_FILES))
 
 # Build settings
 COMPILER := clang++
-COMPILER_OPTIONS := -c -pipe -Wall -std=c++11 # If you have an older compiler, you might have to use -std=c++0x
+COMPILER_OPTIONS := -c -pipe -Wall -std=c++11 
+
+# Options (defined as variables for clarity)
 DEBUG_OPTIONS := -ggdb -g3
 FUSSY_OPTIONS := -Werror -pedantic
 SANITIZER_OPTIONS := -O1 -fsanitize=undefined -fsanitize=address -fno-omit-frame-pointer
 SPEEDY_OPTIONS := -Ofast -funsafe-math-optimizations -march=native
 LINKER_OPTIONS :=
 
-# Set up flags
+# Flags
 SDW_COMPILER_FLAGS := -I$(SDW_DIR)
 GLM_COMPILER_FLAGS := -I$(GLM_DIR)
-# If you have a manual install of SDL, you might not have sdl2-config installed, so the following line might not work
-# Compiler flags should look something like: -I/usr/local/include/SDL2 -D_THREAD_SAFE
 SDL_COMPILER_FLAGS := $(shell sdl2-config --cflags)
-# If you have a manual install of SDL, you might not have sdl2-config installed, so the following line might not work
-# Linker flags should look something like: -L/usr/local/lib -lSDL2
 SDL_LINKER_FLAGS := $(shell sdl2-config --libs)
-SDW_LINKER_FLAGS := $(SDW_OBJECT_FILES)
 
+# Default target
 default: debug
 
-# Rule to compile and link for use with a debugger (although works fine even if you aren't using a debugger !)
-debug: EXTRA_COMPILE_FLAGS := $(DEBUG_OPTIONS)
-debug: $(PROJECT_OBJECT_FILES) $(SDW_OBJECT_FILES)
-	$(COMPILER) $(LINKER_OPTIONS) $(DEBUG_OPTIONS) -o $(EXECUTABLE) $^ $(SDL_LINKER_FLAGS)
+debug:
+	@$(MAKE) binary BUILD_DIR=build/debug EXTRA_FLAGS="$(DEBUG_OPTIONS)"
+
+diagnostic:
+	@$(MAKE) binary BUILD_DIR=build/diagnostic EXTRA_FLAGS="$(FUSSY_OPTIONS) $(SANITIZER_OPTIONS)"
+
+speedy:
+	@$(MAKE) binary BUILD_DIR=build/speedy EXTRA_FLAGS="$(SPEEDY_OPTIONS)"
+
+production:
+	@$(MAKE) binary BUILD_DIR=build/production EXTRA_FLAGS=""
+
+
+binary: directories $(EXECUTABLE)
 	./$(EXECUTABLE)
 
-# Rule to help find runtime errors (when you get a segmentation fault)
-# NOTE: This needs the "Address Sanitizer" library to be installed in order to work (so it might not work on lab machines !)
-diagnostic: EXTRA_COMPILE_FLAGS := $(FUSSY_OPTIONS) $(SANITIZER_OPTIONS)
-diagnostic: $(PROJECT_OBJECT_FILES) $(SDW_OBJECT_FILES)
-	$(COMPILER) $(LINKER_OPTIONS) $(FUSSY_OPTIONS) $(SANITIZER_OPTIONS) -o $(EXECUTABLE) $^ $(SDL_LINKER_FLAGS)
-	./$(EXECUTABLE)
+directories:
+	@mkdir -p $(BUILD_DIR)
 
-# Rule to build for high performance executable (for manually testing interaction)
-speedy: EXTRA_COMPILE_FLAGS := $(SPEEDY_OPTIONS)
-speedy: $(PROJECT_OBJECT_FILES) $(SDW_OBJECT_FILES)
-	$(COMPILER) $(LINKER_OPTIONS) $(SPEEDY_OPTIONS) -o $(EXECUTABLE) $^ $(SDL_LINKER_FLAGS)
-	./$(EXECUTABLE)
-
-# Rule to compile and link for final production release
-production: EXTRA_COMPILE_FLAGS :=
-production: $(PROJECT_OBJECT_FILES) $(SDW_OBJECT_FILES)
-	$(COMPILER) -$(LINKER_OPTIONS) -o $(EXECUTABLE) $^ $(SDL_LINKER_FLAGS)
-	./$(EXECUTABLE)
+# Link the executable
+$(EXECUTABLE): $(PROJECT_OBJECT_FILES) $(SDW_OBJECT_FILES)
+	$(COMPILER) $(LINKER_OPTIONS) $(EXTRA_FLAGS) -o $(EXECUTABLE) $^ $(SDL_LINKER_FLAGS)
 
 # Rule for building project source files
 $(BUILD_DIR)/%.o: src/%.cpp
-	@mkdir -p $(BUILD_DIR)
-	$(COMPILER) $(COMPILER_OPTIONS) $(EXTRA_COMPILE_FLAGS) -c -o $@ $^ $(SDW_COMPILER_FLAGS) $(SDL_COMPILER_FLAGS) $(GLM_COMPILER_FLAGS)
+	$(COMPILER) $(COMPILER_OPTIONS) $(EXTRA_FLAGS) -c -o $@ $< $(SDW_COMPILER_FLAGS) $(SDL_COMPILER_FLAGS) $(GLM_COMPILER_FLAGS)
 
-# Rule for building all of the the DisplayWindow classes
+# Rule for building SDW source files
 $(BUILD_DIR)/%.o: $(SDW_DIR)%.cpp
-	@mkdir -p $(BUILD_DIR)
-	$(COMPILER) $(COMPILER_OPTIONS) -c -o $@ $^ $(SDL_COMPILER_FLAGS) $(GLM_COMPILER_FLAGS)
+	$(COMPILER) $(COMPILER_OPTIONS) -c -o $@ $< $(SDL_COMPILER_FLAGS) $(GLM_COMPILER_FLAGS)
 
-# Files to remove during clean
+# Clean rule
 clean:
-	rm $(BUILD_DIR)/*
+	rm -rf build/*
