@@ -16,8 +16,9 @@
 #include "glm/gtx/string_cast.hpp"
 #include <cstring>
 
-#define WIDTH 960
-#define HEIGHT 720
+#define WINDOW_SCALE 2
+#define WIDTH 320 * WINDOW_SCALE
+#define HEIGHT 240 * WINDOW_SCALE
 
 double cameraAngle = 0;
 
@@ -43,68 +44,8 @@ void drawRaytracedScene(Scene &scene) {
 
             if (intersection.distanceFromCamera != -1) {
 
-                float totalBrightness = 0;
-
-                ModelTriangle triangle = intersection.intersectedTriangle;
-                glm::vec3 barycentric = convertToBarycentricCoordinates(
-                    triangle.vertices[0], triangle.vertices[1], triangle.vertices[2], intersection.intersectionPoint);
-
-                for (glm::vec3 lightSource : scene.lightSources) {
-                    glm::vec3 triangleToLight = glm::normalize(lightSource - intersection.intersectionPoint);
-                    RayTriangleIntersection lightIntersection =
-                        getClosestValidIntersection(intersection.intersectionPoint, triangleToLight, scene.models);
-                    float distanceToLight = length(lightSource - intersection.intersectionPoint);
-
-                    float proximity = 1 / ((2 / 7.0f) * glm::pi<double>() * (glm::pow(distanceToLight, 2)));
-                    proximity = glm::clamp(proximity, 0.0f, 1.0f);
-
-                    // glm::vec3 normal = intersection.intersectedTriangle.normal;
-                    glm::vec3 normal = triangle.vertexNormals[0] * barycentric.z +
-                                       triangle.vertexNormals[1] * barycentric.x +
-                                       triangle.vertexNormals[2] * barycentric.y;
-                    normal = glm::normalize(normal);
-                    float diffuse = glm::dot(normal, triangleToLight);
-                    diffuse = glm::clamp(diffuse, 0.0f, 1.0f);
-
-                    glm::vec3 reflectionVector =
-                        glm::normalize(-triangleToLight - 2.0f * normal * glm::dot(-triangleToLight, normal));
-                    float specular = glm::dot(-cameraToTriangle, reflectionVector);
-                    specular = glm::clamp(specular, 0.0f, 1.0f);
-                    specular = glm::pow(specular, 16);
-
-                    float brightness = 0.3 * proximity + 0.6 * diffuse + specular;
-
-                    if (lightIntersection.distanceFromCamera == -1 ||
-                        lightIntersection.distanceFromCamera > distanceToLight) {
-                        totalBrightness += brightness;
-                    }
-                }
-
-                /*
-                float brightness = triangle.vertexBrightness[0] * barycentric.z +
-                                   triangle.vertexBrightness[1] * barycentric.x +
-                                   triangle.vertexBrightness[2] * barycentric.y;
-                */
-
-                float minimumThreshold = 0.1f;
-                totalBrightness = glm::clamp(totalBrightness, minimumThreshold, 1.0f);
-                Colour colour = intersection.intersectedTriangle.colour;
-
-                // Floor texture mapping
-                if (intersection.triangleIndex == 6) {
-                    CanvasTriangle textureTriangle =
-                        CanvasTriangle(CanvasPoint(scene.texture.width, scene.texture.height), CanvasPoint(0, 0),
-                                       CanvasPoint(0, scene.texture.height));
-                    colour = getTexturePixelValue(barycentric, textureTriangle, scene.texture);
-                }
-                if (intersection.triangleIndex == 7) {
-                    CanvasTriangle textureTriangle =
-                        CanvasTriangle(CanvasPoint(scene.texture.width, scene.texture.height),
-                                       CanvasPoint(scene.texture.width, 0), CanvasPoint(0, 0));
-                    colour = getTexturePixelValue(barycentric, textureTriangle, scene.texture);
-                }
-
-                scene.window.setPixelColour(x, y, colour.value(totalBrightness));
+                uint32_t colour = getPixelColour(scene, intersection, cameraToTriangle);
+                scene.window.setPixelColour(x, y, colour);
             }
         }
     }
