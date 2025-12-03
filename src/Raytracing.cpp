@@ -4,6 +4,7 @@
 #include "glm/detail/func_geometric.hpp"
 #include "glm/detail/type_vec.hpp"
 #include "glm/gtc/constants.hpp"
+#include "glm/gtx/string_cast.hpp"
 #include <limits>
 
 RayTriangleIntersection getClosestValidIntersection(glm::vec3 position, glm::vec3 direction,
@@ -97,6 +98,54 @@ uint32_t getPixelColour(Scene &scene, RayTriangleIntersection intersection, glm:
                        triangle.vertexNormals[2] * barycentric.y;
     normal = glm::normalize(normal);
 
+    // Mirror triangles
+    if (intersection.triangleIndex == 26 || intersection.triangleIndex == 31) {
+        glm::vec3 reflectionVector = calculateReflection(incidentRay, normal);
+        RayTriangleIntersection reflectedRayIntersection =
+            getClosestValidIntersection(intersection.intersectionPoint, reflectionVector, scene.models);
+        return getPixelColour(scene, reflectedRayIntersection, reflectionVector);
+    }
+
+    // Refraction
+    if (!strcmp(intersection.intersectedTriangle.colour.name.c_str(), "Red")) {
+        float sinCriticalAngle = 1.5; // n2 / n1
+        glm::vec3 inverseRay = -incidentRay; // Ray from perspective of triangle
+        glm::vec3 tempNormal = intersection.intersectedTriangle.normal;
+        if (glm::dot(inverseRay, tempNormal) < 0) {
+            // Light ray approaching from inside box
+            tempNormal = -tempNormal;
+            sinCriticalAngle = 1.0f / sinCriticalAngle;
+        }
+        float sinIncidence = glm::length(glm::cross(inverseRay, tempNormal));
+        if (sinIncidence < sinCriticalAngle) {
+            // Refract into box
+
+            // Calculate sideways component of vector
+            glm::vec3 t = glm::normalize((incidentRay - glm::dot(incidentRay, -tempNormal) * -tempNormal));
+            int sign = glm::dot(incidentRay, -tempNormal) < 0 ? -1 : 1;
+            float sinRefractedAngle = 1.0f / sinCriticalAngle * sinIncidence;
+            if (sinRefractedAngle > 1) {
+                std::cout << sinCriticalAngle << std::endl;
+            }
+            float c2 = sqrt(1 - sinRefractedAngle * sinRefractedAngle);
+
+            glm::vec3 refractedRay = sinRefractedAngle * t + sign * c2 * -tempNormal;
+            //std::cout << glm::to_string(incidentRay) << ", " << glm::to_string(refractedRay) << std::endl;
+
+            RayTriangleIntersection refractedRayIntersection =
+                getClosestValidIntersection(intersection.intersectionPoint, refractedRay, scene.models);
+            return getPixelColour(scene, refractedRayIntersection, refractedRay);
+        }
+
+        if (sinIncidence >= sinCriticalAngle) {
+            // Total internal reflection
+            glm::vec3 reflectedRay = calculateReflection(incidentRay, tempNormal);
+            RayTriangleIntersection reflectedRayIntersection =
+                getClosestValidIntersection(intersection.intersectionPoint, reflectedRay, scene.models);
+            return getPixelColour(scene, reflectedRayIntersection, reflectedRay);
+        }
+    }
+
     float totalBrightness = 0;
 
     // float lightWidth = 0.05f;
@@ -158,7 +207,7 @@ uint32_t getPixelColour(Scene &scene, RayTriangleIntersection intersection, glm:
         glm::vec3 reflectionVector = calculateReflection(-triangleToLight, normal);
         float specular = glm::dot(-incidentRay, reflectionVector);
         specular = glm::clamp(specular, 0.0f, 1.0f);
-        specular = glm::pow(specular, 16);
+        specular = glm::pow(specular, 64);
 
         float brightness = 0.3 * proximity + 0.6 * diffuse + specular;
 
@@ -171,17 +220,9 @@ uint32_t getPixelColour(Scene &scene, RayTriangleIntersection intersection, glm:
                        triangle.vertexBrightness[2] * barycentric.y;
     */
 
-    float minimumThreshold = 0.1f;
+    float minimumThreshold = 0.05f;
     totalBrightness = glm::clamp(totalBrightness, minimumThreshold, 1.0f);
     Colour colour = intersection.intersectedTriangle.colour;
-
-    // Mirror triangles
-    if (intersection.triangleIndex == 26 || intersection.triangleIndex == 31) {
-        glm::vec3 reflectionVector = calculateReflection(incidentRay, normal);
-        RayTriangleIntersection reflectedRayIntersection =
-            getClosestValidIntersection(intersection.intersectionPoint, reflectionVector, scene.models);
-        return getPixelColour(scene, reflectedRayIntersection, reflectionVector);
-    }
 
     // Floor texture mapping
     if (intersection.triangleIndex == 6) {
