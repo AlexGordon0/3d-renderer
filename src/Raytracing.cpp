@@ -4,10 +4,12 @@
 #include "glm/detail/func_geometric.hpp"
 #include "glm/detail/type_vec.hpp"
 #include "glm/gtc/constants.hpp"
+#include <limits>
 
 RayTriangleIntersection getClosestValidIntersection(glm::vec3 position, glm::vec3 direction,
                                                     std::vector<std::vector<ModelTriangle>> models) {
     RayTriangleIntersection closestIntersection = RayTriangleIntersection({0, 0, 0}, -1, models[0][0], 0);
+    closestIntersection.intersectedTriangle.colour = Colour(0, 0, 0);
     for (std::vector<ModelTriangle> model : models) {
         for (int i = 0; i < model.size(); i++) {
             ModelTriangle triangle = model[i];
@@ -97,11 +99,54 @@ uint32_t getPixelColour(Scene &scene, RayTriangleIntersection intersection, glm:
 
     float totalBrightness = 0;
 
+    // float lightWidth = 0.05f;
+    // int numPoints = 3;
     for (glm::vec3 lightSource : scene.lightSources) {
+
         glm::vec3 triangleToLight = glm::normalize(lightSource - intersection.intersectionPoint);
-        RayTriangleIntersection lightIntersection =
-            getClosestValidIntersection(intersection.intersectionPoint, triangleToLight, scene.models);
-        float distanceToLight = length(lightSource - intersection.intersectionPoint);
+        float distanceToLight = glm::length(lightSource - intersection.intersectionPoint);
+
+        /*
+        int lightVisible = 0;
+        glm::vec3 lightAxis1 = glm::normalize(glm::cross(triangleToLight, {0, 1, 0}));
+        glm::vec3 lightAxis2 = glm::normalize(glm::cross({0, 1, 0}, lightAxis1));
+        for (float i = -lightWidth / 2; i <= lightWidth / 2; i += lightWidth / 2) {
+            for (float j = -lightWidth / 2; j <= lightWidth / 2; j += lightWidth / 2) {
+                glm::vec3 triangleToLightNode = lightAxis1 * i + lightAxis2 * j + triangleToLight;
+                RayTriangleIntersection lightIntersection =
+                    getClosestValidIntersection(intersection.intersectionPoint, triangleToLightNode, scene.models);
+                float distanceToLight = glm::length(triangleToLightNode);
+                if (lightIntersection.distanceFromCamera == -1 ||
+                    lightIntersection.distanceFromCamera > distanceToLight) {
+                    lightVisible++;
+                }
+            }
+        }
+        float shadowCoefficient = float(lightVisible) / (numPoints * numPoints);
+        */
+        float shadowCoefficient = 1;
+        int size = scene.shadowMap.size();
+        glm::vec3 lightToTriangle = -triangleToLight;
+        float scale = (size / 2.0f) / -lightToTriangle.y;
+        int xIndex = round(lightToTriangle.x * scale) + size / 2;
+        int zIndex = round(lightToTriangle.z * scale) + size / 2;
+        int softWidth = 10;
+
+        if (xIndex < size - softWidth && zIndex < size - softWidth && xIndex >= softWidth && zIndex >= softWidth) {
+            float numShadows = 0;
+            for (int i = -softWidth; i <= softWidth; i++) {
+                for (int j = -softWidth; j <= softWidth; j++) {
+                    if (scene.shadowMap[xIndex + i][zIndex + j] < distanceToLight - 0.03) {
+                        numShadows++;
+                    }
+                }
+            }
+            shadowCoefficient = 1 - (numShadows / ((softWidth * 2 + 1) * (softWidth * 2 + 1)));
+            // std::cout << shadowCoefficient << std::endl;
+        }
+
+        // RayTriangleIntersection lightIntersection =
+        // getClosestValidIntersection(intersection.intersectionPoint, triangleToLight, scene.models);
 
         float proximity = 1 / ((2 / 7.0f) * glm::pi<double>() * (glm::pow(distanceToLight, 2)));
         proximity = glm::clamp(proximity, 0.0f, 1.0f);
@@ -117,9 +162,7 @@ uint32_t getPixelColour(Scene &scene, RayTriangleIntersection intersection, glm:
 
         float brightness = 0.3 * proximity + 0.6 * diffuse + specular;
 
-        if (lightIntersection.distanceFromCamera == -1 || lightIntersection.distanceFromCamera > distanceToLight) {
-            totalBrightness += brightness;
-        }
+        totalBrightness += brightness * shadowCoefficient;
     }
 
     /* Gouraud shading
@@ -133,13 +176,11 @@ uint32_t getPixelColour(Scene &scene, RayTriangleIntersection intersection, glm:
     Colour colour = intersection.intersectedTriangle.colour;
 
     // Mirror triangles
-    if (intersection.triangleIndex == 10 || intersection.triangleIndex == 11) {
+    if (intersection.triangleIndex == 26 || intersection.triangleIndex == 31) {
         glm::vec3 reflectionVector = calculateReflection(incidentRay, normal);
         RayTriangleIntersection reflectedRayIntersection =
             getClosestValidIntersection(intersection.intersectionPoint, reflectionVector, scene.models);
-        if (reflectedRayIntersection.distanceFromCamera != -1) {
-            return getPixelColour(scene, reflectedRayIntersection, reflectionVector);
-        }
+        return getPixelColour(scene, reflectedRayIntersection, reflectionVector);
     }
 
     // Floor texture mapping
@@ -155,4 +196,22 @@ uint32_t getPixelColour(Scene &scene, RayTriangleIntersection intersection, glm:
     }
 
     return colour.value(totalBrightness);
+}
+
+// Populate shadow map for single light
+void populateShadowMap(Scene &scene) {
+    int size = scene.shadowMap.size();
+    for (int i = 0; i < size; i++) {
+        for (int j = 0; j < size; j++) {
+            glm::vec3 lightPosition = scene.lightSources[0];
+            glm::vec3 rayDirection = glm::normalize(glm::vec3(i - size / 2, -size / 2, j - size / 2));
+            RayTriangleIntersection intersection =
+                getClosestValidIntersection(lightPosition, rayDirection, scene.models);
+            if (intersection.distanceFromCamera != -1) {
+                scene.shadowMap[i][j] = intersection.distanceFromCamera;
+            } else {
+                scene.shadowMap[i][j] = 1000000;
+            }
+        }
+    }
 }

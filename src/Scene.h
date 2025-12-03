@@ -12,6 +12,7 @@ struct Scene {
     std::vector<std::vector<ModelTriangle>> models;
     std::vector<glm::vec3> lightSources;
     std::vector<std::vector<float>> zDepth;
+    std::array<std::array<float, 1024>, 1024> shadowMap;
     TextureMap texture;
 
     Scene(DrawingWindow _window, Camera _camera, int _mode, std::vector<std::vector<ModelTriangle>> _models,

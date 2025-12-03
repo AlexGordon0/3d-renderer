@@ -7,8 +7,6 @@
 #include "Raytracing.h"
 #include "Scene.h"
 #include "Shapes.h"
-#include "Texturer.h"
-#include "Utils.h"
 #include "glm/detail/func_geometric.hpp"
 #include "glm/detail/type_mat.hpp"
 #include "glm/detail/type_vec.hpp"
@@ -192,6 +190,7 @@ int main(int argc, char *argv[]) {
     scene.texture = TextureMap("resources/texture.ppm");
     // Calculate vertex brightnesses before scene drawn
     calculateVertexBrightness(scene);
+    populateShadowMap(scene);
 
     // RayTriangleIntersection intersection = getClosestValidIntersection(camera.position, {0, 0, -1});
     // if (intersection.distanceFromCamera != -1) {
