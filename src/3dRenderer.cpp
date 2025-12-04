@@ -50,6 +50,13 @@ void drawRaytracedScene(Scene &scene) {
             }
         }
     }
+
+    if (scene.camera.orbit) {
+        const double turnSpeed = glm::pi<double>() / 480;
+        cameraAngle += turnSpeed;
+        scene.camera.position = {4 * sin(cameraAngle), 0, 4 * cos(cameraAngle)};
+        lookAt(scene.camera, {0, 0, 0});
+    }
 }
 
 void drawRasterisedScene(Scene &scene) {
@@ -62,7 +69,7 @@ void drawRasterisedScene(Scene &scene) {
     drawModels(scene);
 
     if (scene.camera.orbit) {
-        const double turnSpeed = glm::pi<double>() / 240;
+        const double turnSpeed = glm::pi<double>() / 480;
         cameraAngle += turnSpeed;
         scene.camera.position = {4 * sin(cameraAngle), 0, 4 * cos(cameraAngle)};
         lookAt(scene.camera, {0, 0, 0});
