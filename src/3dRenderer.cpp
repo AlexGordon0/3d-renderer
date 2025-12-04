@@ -13,12 +13,15 @@
 #include "glm/gtc/constants.hpp"
 #include "glm/gtx/string_cast.hpp"
 #include <cstring>
+#include <iomanip>
+#include <sstream>
 
 #define WINDOW_SCALE 2
 #define WIDTH 320 * WINDOW_SCALE
 #define HEIGHT 240 * WINDOW_SCALE
 
 double cameraAngle = 0;
+int frame = 0;
 
 void lookAt(Camera &camera, glm::vec3 focusPoint) {
     glm::vec3 forwardVector = glm::normalize(camera.position - focusPoint);
@@ -156,14 +159,11 @@ void handleEvent(SDL_Event event, Scene &scene) {
             camera->orientation = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
         }
 
-        else if (event.key.keysym.sym == SDLK_l) {
-            // implement light movement
-        }
     }
 
     else if (event.type == SDL_MOUSEBUTTONDOWN) {
-        // window.savePPM("output.ppm");
-        // window.saveBMP("output.bmp");
+        window->savePPM("output.ppm");
+        window->saveBMP("output.bmp");
     }
 }
 
@@ -179,9 +179,13 @@ int main(int argc, char *argv[]) {
     int mode = 1;
 
     std::map<std::string, Colour> colourMap = readMtl("cornell-box");
-    std::vector<std::vector<ModelTriangle>> models = {};
-    models.push_back(readObj("cornell-box", colourMap, 0.35));
-    // models.push_back(readObj("sphere", colourMap, 1));
+    std::vector<ModelTriangle> models = {};
+    models = readObj("cornell-box", colourMap, 0.35);
+    std::vector<ModelTriangle> sphere = readObj("sphere", colourMap, 0.2, glm::vec3(-0.5, -1.05, 0.6));
+    models.insert(std::end(models), std::begin(sphere), std::end(sphere));
+    colourMap = readMtl("bunny");
+    std::vector<ModelTriangle> bunny = readObj("bunny", colourMap, 0.004, glm::vec3(0.24, -0.38, 0.37));
+    models.insert(std::end(models), std::begin(bunny), std::end(bunny));
 
     std::vector<glm::vec3> lightSources = {};
     lightSources.push_back(glm::vec3(0, 0.9, 0));
@@ -189,7 +193,7 @@ int main(int argc, char *argv[]) {
     Scene scene = Scene(window, camera, mode, models, lightSources);
     scene.texture = TextureMap("resources/texture.ppm");
     // Calculate vertex brightnesses before scene drawn
-    calculateVertexBrightness(scene);
+    // calculateVertexBrightness(scene);
     populateShadowMap(scene);
 
     // RayTriangleIntersection intersection = getClosestValidIntersection(camera.position, {0, 0, -1});
@@ -206,9 +210,36 @@ int main(int argc, char *argv[]) {
             drawRasterisedScene(scene);
         } else {
             drawRaytracedScene(scene);
-            std::cout << "Frame" << std::endl;
         }
         // Need to render the frame at the end, or nothing actually gets shown on the screen !
         scene.window.renderFrame();
+
+        /* Animation code
+        std::ostringstream oss;
+        oss << "output" << std::setw(3) << std::setfill('0') << frame << ".ppm";
+        std::string s = oss.str();
+        scene.window.savePPM(s);
+
+        if (frame < 125) {
+            scene.camera.position.z -= 0.064;
+            if (scene.camera.position.z < -0.181289) {
+                float angle = glm::pi<float>() / 60;
+                glm::mat3 rotationMatrix = {{cos(angle), 0, sin(angle)}, {0, 1, 0}, {-sin(angle), 0, cos(angle)}};
+                scene.camera.orientation = scene.camera.orientation * rotationMatrix;
+            }
+        }
+        if (frame >= 126 && frame < 225) {
+            const float turnSpeed = glm::pi<float>() / 100;
+            cameraAngle += turnSpeed;
+            scene.camera.position = {4 * sin(cameraAngle), 0, 4 * cos(cameraAngle + glm::pi<float>())};
+            lookAt(scene.camera, {0, 0, 0});
+        }
+        if (frame > 225) {
+            return 0;
+        }
+
+        frame++;
+        std::cout << frame << std::endl;
+        */
     }
 }

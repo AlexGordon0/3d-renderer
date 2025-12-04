@@ -6,6 +6,9 @@ CanvasPoint projectVertexOntoCanvasPoint(Scene &scene, glm::vec3 vertexPosition)
     Camera camera = scene.camera;
     glm::vec3 cameraToVertex = vertexPosition - camera.position;
     glm::vec3 transposedPosition = cameraToVertex * camera.orientation;
+    if (transposedPosition.z > -0.1) {
+        return CanvasPoint(-1, -1, 1);
+    }
     float x = camera.focalLength * transposedPosition.x / transposedPosition.z;
     float y = camera.focalLength * transposedPosition.y / transposedPosition.z;
 
@@ -18,16 +21,17 @@ CanvasPoint projectVertexOntoCanvasPoint(Scene &scene, glm::vec3 vertexPosition)
 
 void drawModels(Scene &scene) {
     int mode = scene.mode;
-    for (std::vector<ModelTriangle> model : scene.models) {
-        for (ModelTriangle modelTriangle : model) {
-            CanvasTriangle triangle = CanvasTriangle(projectVertexOntoCanvasPoint(scene, modelTriangle.vertices[0]),
-                                                     projectVertexOntoCanvasPoint(scene, modelTriangle.vertices[1]),
-                                                     projectVertexOntoCanvasPoint(scene, modelTriangle.vertices[2]));
-            if (mode == 0) {
-                drawStrokedTriangle(scene, triangle, Colour(255, 255, 255)); // wireframe
-            } else if (mode == 1) {
-                drawFilledTriangle(scene, triangle, modelTriangle.colour);
-            }
+    for (ModelTriangle modelTriangle : scene.models) {
+        CanvasTriangle triangle = CanvasTriangle(projectVertexOntoCanvasPoint(scene, modelTriangle.vertices[0]),
+                                                 projectVertexOntoCanvasPoint(scene, modelTriangle.vertices[1]),
+                                                 projectVertexOntoCanvasPoint(scene, modelTriangle.vertices[2]));
+        if (triangle.v0().depth > 0 || triangle.v1().depth > 0 || triangle.v2().depth > 0) {
+            return;
+        }
+        if (mode == 0) {
+            drawStrokedTriangle(scene, triangle, Colour(255, 255, 255)); // wireframe
+        } else if (mode == 1) {
+            drawFilledTriangle(scene, triangle, modelTriangle.colour);
         }
     }
 }

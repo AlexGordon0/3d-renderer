@@ -5,82 +5,77 @@
 #include "glm/detail/type_vec.hpp"
 #include "glm/gtc/constants.hpp"
 #include "glm/gtx/string_cast.hpp"
-#include <limits>
 
 RayTriangleIntersection getClosestValidIntersection(glm::vec3 position, glm::vec3 direction,
-                                                    std::vector<std::vector<ModelTriangle>> models) {
-    RayTriangleIntersection closestIntersection = RayTriangleIntersection({0, 0, 0}, -1, models[0][0], 0);
+                                                    std::vector<ModelTriangle> model) {
+    RayTriangleIntersection closestIntersection = RayTriangleIntersection({0, 0, 0}, -1, model[0], 0);
     closestIntersection.intersectedTriangle.colour = Colour(0, 0, 0);
-    for (std::vector<ModelTriangle> model : models) {
-        for (int i = 0; i < model.size(); i++) {
-            ModelTriangle triangle = model[i];
-            glm::vec3 e0 = triangle.vertices[1] - triangle.vertices[0];
-            glm::vec3 e1 = triangle.vertices[2] - triangle.vertices[0];
-            glm::vec3 SPVector = position - triangle.vertices[0];
-            glm::mat3 DEMatrix(-direction, e0, e1);
-            glm::vec3 possibleSolution = glm::inverse(DEMatrix) * SPVector;
+    for (int i = 0; i < model.size(); i++) {
+        ModelTriangle triangle = model[i];
+        glm::vec3 e0 = triangle.vertices[1] - triangle.vertices[0];
+        glm::vec3 e1 = triangle.vertices[2] - triangle.vertices[0];
+        glm::vec3 SPVector = position - triangle.vertices[0];
+        glm::mat3 DEMatrix(-direction, e0, e1);
+        glm::vec3 possibleSolution = glm::inverse(DEMatrix) * SPVector;
 
-            float t = possibleSolution.x;
-            float u = possibleSolution.y;
-            float v = possibleSolution.z;
+        float t = possibleSolution.x;
+        float u = possibleSolution.y;
+        float v = possibleSolution.z;
 
-            if (u < 0 || u > 1)
-                continue;
-            if (v < 0 || v > 1)
-                continue;
-            if (u + v > 1)
-                continue;
-            // Strange NaN check for when DEMatrix is singular
-            if (t < 0.0001 || t != t)
-                continue;
+        if (u < 0 || u > 1)
+            continue;
+        if (v < 0 || v > 1)
+            continue;
+        if (u + v > 1)
+            continue;
+        // Strange NaN check for when DEMatrix is singular
+        if (t < 0.0001 || t != t)
+            continue;
 
-            glm::vec3 r = t * direction;
+        glm::vec3 r = t * direction;
 
-            RayTriangleIntersection intersection = RayTriangleIntersection(r + position, t, triangle, i);
-            if (closestIntersection.distanceFromCamera == -1 ||
-                intersection.distanceFromCamera < closestIntersection.distanceFromCamera) {
-                closestIntersection = intersection;
-            }
+        RayTriangleIntersection intersection = RayTriangleIntersection(r + position, t, triangle, i);
+        if (closestIntersection.distanceFromCamera == -1 ||
+            intersection.distanceFromCamera < closestIntersection.distanceFromCamera) {
+            closestIntersection = intersection;
         }
     }
     return closestIntersection;
 }
 
 void calculateVertexBrightness(Scene &scene) {
-    for (std::vector<ModelTriangle> &model : scene.models) {
-        for (ModelTriangle &triangle : model) {
-            for (int j = 0; j < 3; j++) {
+    for (ModelTriangle &triangle : scene.models) {
+        for (int j = 0; j < 3; j++) {
 
-                float totalBrightness = 0;
+            float totalBrightness = 0;
 
-                for (glm::vec3 lightSource : scene.lightSources) {
+            for (glm::vec3 lightSource : scene.lightSources) {
 
-                    glm::vec3 vertexToLight = glm::normalize(lightSource - triangle.vertices[j]);
-                    float distanceToLight = length(lightSource - triangle.vertices[j]);
+                glm::vec3 vertexToLight = glm::normalize(lightSource - triangle.vertices[j]);
+                float distanceToLight = length(lightSource - triangle.vertices[j]);
 
-                    float proximity = 1 / ((2 / 7.0f) * glm::pi<double>() * (glm::pow(distanceToLight, 2)));
-                    proximity = glm::clamp(proximity, 0.0f, 1.0f);
+                float proximity = 1 / ((2 / 7.0f) * glm::pi<double>() * (glm::pow(distanceToLight, 2)));
+                proximity = glm::clamp(proximity, 0.0f, 1.0f);
 
-                    glm::vec3 vertexNormal = triangle.vertexNormals[j];
-                    float diffuse = glm::dot(vertexNormal, vertexToLight);
-                    diffuse = glm::clamp(diffuse, 0.0f, 1.0f);
+                glm::vec3 vertexNormal = triangle.vertexNormals[j];
+                float diffuse = glm::dot(vertexNormal, vertexToLight);
+                diffuse = glm::clamp(diffuse, 0.0f, 1.0f);
 
-                    glm::vec3 cameraToVertex =
-                        scene.camera.orientation * glm::normalize(triangle.vertices[j] - scene.camera.position);
-                    glm::vec3 reflectionVector =
-                        glm::normalize(-vertexToLight - 2.0f * vertexNormal * glm::dot(-vertexToLight, vertexNormal));
-                    float specular = glm::dot(-cameraToVertex, reflectionVector);
-                    specular = glm::clamp(specular, 0.0f, 1.0f);
-                    specular = glm::pow(specular, 1);
+                glm::vec3 cameraToVertex =
+                    scene.camera.orientation * glm::normalize(triangle.vertices[j] - scene.camera.position);
+                glm::vec3 reflectionVector =
+                    glm::normalize(-vertexToLight - 2.0f * vertexNormal * glm::dot(-vertexToLight, vertexNormal));
+                float specular = glm::dot(-cameraToVertex, reflectionVector);
+                specular = glm::clamp(specular, 0.0f, 1.0f);
+                specular = glm::pow(specular, 1);
 
-                    float brightness = 0.3 * proximity + 0.6 * diffuse + 1 * specular;
-                    totalBrightness += brightness;
-                }
-
-                float minimumThreshold = 0.1f;
-                totalBrightness = glm::clamp(totalBrightness, minimumThreshold, 1.0f);
-                triangle.vertexBrightness[j] = totalBrightness;
+                float brightness = 0.3 * proximity + 0.6 * diffuse + 1 * specular;
+                totalBrightness += brightness;
             }
+
+            float minimumThreshold = 0.1f;
+            totalBrightness = glm::clamp(totalBrightness, minimumThreshold, 1.0f);
+            triangle.vertexBrightness[j] = totalBrightness;
         }
     }
 }
@@ -108,7 +103,7 @@ uint32_t getPixelColour(Scene &scene, RayTriangleIntersection intersection, glm:
 
     // Refraction
     if (!strcmp(intersection.intersectedTriangle.colour.name.c_str(), "Red")) {
-        float sinCriticalAngle = 1.5; // n2 / n1
+        float sinCriticalAngle = 1.5;        // n2 / n1
         glm::vec3 inverseRay = -incidentRay; // Ray from perspective of triangle
         glm::vec3 tempNormal = intersection.intersectedTriangle.normal;
         if (glm::dot(inverseRay, tempNormal) < 0) {
@@ -124,13 +119,9 @@ uint32_t getPixelColour(Scene &scene, RayTriangleIntersection intersection, glm:
             glm::vec3 t = glm::normalize((incidentRay - glm::dot(incidentRay, -tempNormal) * -tempNormal));
             int sign = glm::dot(incidentRay, -tempNormal) < 0 ? -1 : 1;
             float sinRefractedAngle = 1.0f / sinCriticalAngle * sinIncidence;
-            if (sinRefractedAngle > 1) {
-                std::cout << sinCriticalAngle << std::endl;
-            }
             float c2 = sqrt(1 - sinRefractedAngle * sinRefractedAngle);
 
             glm::vec3 refractedRay = sinRefractedAngle * t + sign * c2 * -tempNormal;
-            //std::cout << glm::to_string(incidentRay) << ", " << glm::to_string(refractedRay) << std::endl;
 
             RayTriangleIntersection refractedRayIntersection =
                 getClosestValidIntersection(intersection.intersectionPoint, refractedRay, scene.models);
@@ -191,7 +182,6 @@ uint32_t getPixelColour(Scene &scene, RayTriangleIntersection intersection, glm:
                 }
             }
             shadowCoefficient = 1 - (numShadows / ((softWidth * 2 + 1) * (softWidth * 2 + 1)));
-            // std::cout << shadowCoefficient << std::endl;
         }
 
         // RayTriangleIntersection lightIntersection =
@@ -220,7 +210,7 @@ uint32_t getPixelColour(Scene &scene, RayTriangleIntersection intersection, glm:
                        triangle.vertexBrightness[2] * barycentric.y;
     */
 
-    float minimumThreshold = 0.05f;
+    float minimumThreshold = 0.2f;
     totalBrightness = glm::clamp(totalBrightness, minimumThreshold, 1.0f);
     Colour colour = intersection.intersectedTriangle.colour;
 
